@@ -10,11 +10,13 @@ import { timeframeToMinutes } from './ReplayProvider';
 import { requestAdjust } from './order-request';
 import { ORDER_PANEL_ID } from './panel-order';
 import { getSimulator } from './context';
+import { pushPositionLevelTime } from './overlay';
 import type { Simulator } from '../engine/Simulator';
 
 const LEVEL_EPS = 1e-6;
-/** Ancho visual del cuadro — igual criterio que panel-order.ts. */
-const BOX_WIDTH_BARS = 10;
+/** Ancho del cuadro — igual criterio que panel-order.ts (chico: el hit-test real de Vela solo
+ *  agarra unos pocos px alrededor de cada anchor, no la línea entera). */
+const BOX_WIDTH_BARS = 4;
 
 function mountAdjust(ctx: WidgetContext, sim: Simulator): () => void {
     let drawingId: string | null = null;
@@ -24,6 +26,7 @@ function mountAdjust(ctx: WidgetContext, sim: Simulator): () => void {
         if (drawingId) ctx.chart.drawings.remove(drawingId);
         drawingId = null;
         baseline = null;
+        pushPositionLevelTime(null);
     }
 
     function ensureTracking(): void {
@@ -51,6 +54,7 @@ function mountAdjust(ctx: WidgetContext, sim: Simulator): () => void {
         });
         drawingId = drawing?.id ?? null;
         baseline = { entry: p.entry, sl: p.sl, tp: p.tp };
+        pushPositionLevelTime(t1);
     }
 
     const offChange = sim.on('change', ensureTracking);

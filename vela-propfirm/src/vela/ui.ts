@@ -87,6 +87,21 @@ export const CSS = `
    fondo puesto en <option>/<optgroup>, así que se fija explícito para que no aparezca blanco. */
 select.pf-native option,select.pf-native optgroup{background-color:var(--lux-bg-2);color:var(--lux-fg)}
 :root[data-theme=light] .pf-native,:root[data-theme=light] select.pf-native option,:root[data-theme=light] select.pf-native optgroup{color-scheme:light}
+/* Trading Panel y Centro de control (.pf-panel, además de .pf) son paneles persistentes, no
+   diálogos modales — más aire entre secciones y controles más grandes/legibles, como pidió el
+   usuario con una captura de referencia (los .pf-dialog se quedan en la escala compacta de antes:
+   agrandarlos también los haría sentir menos "de paso"). Selector compuesto .pf-panel.pf para
+   ganarle a .pf .sec / .pf .hint (misma especificidad si no) sin depender del orden de la hoja. */
+.pf-panel.pf{font-size:13px}
+.pf-panel.pf .sec{margin:12px 14px;padding:16px}
+.pf-panel.pf .sec h3{font-size:11px;margin-bottom:12px;gap:8px}
+.pf-panel.pf .sec h3::before{width:4px;height:13px}
+.pf-panel.pf .hint{font-size:12.5px}
+.pf-panel .pf-btn{padding:9px 14px}
+.pf-panel .pf-btn.tab{padding:12px 8px;font-size:12.5px;font-weight:600}
+.pf-panel .pf-native{padding:9px 11px}
+.pf-panel .pf-chips .pf-btn{padding:10px 16px;font-size:13px}
+
 /* el panel del Dialog (header + borde + fondo) es chrome propio de Vela (.vela-dialog, sobre sus
    propios tokens --vela-*): se sobreescribe acá — con el selector compuesto para ganarle a
    .vela-dialog sin depender del orden de las hojas — para que combine con el body .pf de adentro

@@ -27,8 +27,11 @@ registerIcon('propfirm.order', svg16('<path d="M2.5 4.5h11v7h-11z"/><path d="M5 
 
 const DEFAULT_SL_PTS = 10;
 const DEFAULT_TP_PTS = 20;
-/** Ancho visual del cuadro (en barras del timeframe activo) — puramente estético, no afecta la orden. */
-const BOX_WIDTH_BARS = 10;
+// Ancho del cuadro (en barras del timeframe activo) — el hit-test real de Vela solo agarra unos
+// pocos px alrededor de CADA anchor (no la línea entera), así que un cuadro grande no ayuda a
+// arrastrar: solo aleja el handle del SL/TP de donde el usuario mira. Chico y predecible (el ícono
+// de arrastre se pinta justo ahí — ver overlay.ts).
+const BOX_WIDTH_BARS = 4;
 const LEVEL_EPS = 1e-6;
 
 interface PanelApi {
@@ -124,7 +127,10 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
     }
 
     function publishDraft(entry: number, sl: number, tp: number): void {
-        pushDraftOverlay({ side: dirSide, entry, sl: slOn.checked ? entry - dirSide * sl : null, tp: tpOn.checked ? entry + dirSide * tp : null, type });
+        const anchors = currentAnchors();
+        const entryTime = anchors?.[0]?.time ?? sim.currentTime();
+        const levelTime = anchors?.[1]?.time ?? entryTime;
+        pushDraftOverlay({ side: dirSide, entry, sl: slOn.checked ? entry - dirSide * sl : null, tp: tpOn.checked ? entry + dirSide * tp : null, type, entryTime, levelTime });
     }
 
     function writeDrawing(patch: { entry?: number; slPts?: number; tpPts?: number }): void {

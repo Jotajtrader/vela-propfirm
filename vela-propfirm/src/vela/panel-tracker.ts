@@ -116,7 +116,7 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
     let catFilter: AccountCategory = 'challenge';
     let logSelAcct: string | null = null;
 
-    const root = h('div', 'pf pf-trk');
+    const root = h('div', 'pf pf-trk pf-panel');
     const subtabs = h('div', 'subtabs');
     const tabControl = btn('🎛 Panel de control', () => {
         subTab = 'control';

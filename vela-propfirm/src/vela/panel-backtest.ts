@@ -43,7 +43,7 @@ function mountPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement): () =
     const doc = body.ownerDocument;
     ensureStyles(doc);
     const st = sim.state;
-    const root = h('div', 'pf');
+    const root = h('div', 'pf pf-panel');
 
     // ── Cuentas: modo + cuenta operativa ──────────────────────────────────────────────
     const sAcc = section('Cuentas');
@@ -209,10 +209,14 @@ registerSidePanel({
     title: 'Trading Panel',
     icon: 'propfirm.backtest',
     order: 30,
-    width: 320,
+    // Ancho/overlay alineados con Centro de control (panel-tracker.ts) — antes quedaba angosto y
+    // acoplado (320-480px), lo que lo hacía ver chico/apretado contra el otro panel y contra el
+    // chart; flotante como Tracker no le come ancho al chart al agrandarlo.
+    width: 440,
     resizable: true,
-    minWidth: 280,
-    maxWidth: 480,
+    minWidth: 360,
+    maxWidth: 720,
+    overlay: true,
     mount: (ctx, body) => {
         const sim = getSimulator();
         if (!sim) {
