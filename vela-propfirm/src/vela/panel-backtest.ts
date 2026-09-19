@@ -25,7 +25,7 @@ registerIcon(
 registerWidgetAction({
     id: 'propfirm.open-backtest',
     target: 'topbar',
-    label: 'Prop firm backtest',
+    label: 'Trading Panel',
     icon: 'propfirm.backtest',
     align: 'left',
     order: 10,
@@ -206,7 +206,7 @@ function mountPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement): () =
 
 registerSidePanel({
     id: PANEL_ID,
-    title: 'Prop firm backtest',
+    title: 'Trading Panel',
     icon: 'propfirm.backtest',
     order: 30,
     width: 320,

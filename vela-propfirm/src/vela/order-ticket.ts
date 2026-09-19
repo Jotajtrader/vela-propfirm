@@ -8,7 +8,8 @@ import type { Simulator } from '../engine/Simulator';
 import { money } from '../engine/format';
 import { getSimulator } from './context';
 import { ensureStyles, h } from './ui';
-import { openOrderDialog } from './dialogs/order';
+import { requestOrder } from './order-request';
+import { ORDER_PANEL_ID } from './panel-order';
 
 const STYLE_ID = 'propfirm-order-ticket';
 const CSS = `
@@ -34,7 +35,10 @@ function mountTicket(ctx: WidgetContext, sim: Simulator): () => void {
     const buy = h('button', 'pf-btn buy');
     buy.type = 'button';
     const submit = (side: 1 | -1): void => {
-        if (!sim.submitActiveAtm(side)) openOrderDialog(ctx, sim, side, 1);
+        if (!sim.submitActiveAtm(side)) {
+            requestOrder(side, 1);
+            ctx.togglePanel(ORDER_PANEL_ID, true);
+        }
     };
     sell.addEventListener('click', () => submit(-1));
     buy.addEventListener('click', () => submit(1));

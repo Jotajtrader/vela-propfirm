@@ -8,6 +8,7 @@ import { setPropFirmContext } from './context';
 import { installKeymap } from './keymap';
 import { OVERLAY_ID } from './overlay';
 import './replay-bar';
+import './panel-order';
 import './order-ticket';
 import './panel-backtest';
 import './panel-tracker';

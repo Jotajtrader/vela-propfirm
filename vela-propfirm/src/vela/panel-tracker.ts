@@ -48,7 +48,7 @@ registerIcon('propfirm.tracker', svg16('<path d="M3 3.5h10M3 8h10M3 12.5h6"/><ci
 registerWidgetAction({
     id: 'propfirm.open-tracker',
     target: 'topbar',
-    label: 'Tracker',
+    label: 'Centro de control',
     icon: 'propfirm.tracker',
     align: 'left',
     order: 11,
@@ -680,7 +680,7 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
 
 registerSidePanel({
     id: TRACKER_ID,
-    title: 'Tracker',
+    title: 'Centro de control',
     icon: 'propfirm.tracker',
     order: 31,
     width: 960,

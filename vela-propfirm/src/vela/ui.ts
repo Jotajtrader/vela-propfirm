@@ -50,8 +50,12 @@ export const CSS = `
 .pf-ordrow{display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-variant-numeric:tabular-nums}
 .pf-chips{display:flex;gap:4px;flex-wrap:wrap}
 .pf-seg{display:flex;gap:4px} .pf-seg .pf-btn{flex:1}
-.pf-native{background:transparent;color:var(--vela-fg);border:1px solid var(--vela-border-soft);border-radius:var(--vela-radius-sm);padding:5px 7px;font:inherit;width:100%;box-sizing:border-box;color-scheme:dark}
+.pf-native{background-color:var(--vela-bg,#0b0e11);color:var(--vela-fg);border:1px solid var(--vela-border-soft);border-radius:var(--vela-radius-sm);padding:5px 7px;font:inherit;width:100%;box-sizing:border-box;color-scheme:dark}
 .pf-native:focus{outline:none;border-color:var(--vela-accent)}
+/* el listado desplegado de un <select> es chrome nativo del SO — Chromium sí respeta el color de
+   fondo puesto en <option>/<optgroup>, así que se fija explícito para que no aparezca blanco. */
+select.pf-native option,select.pf-native optgroup{background-color:var(--vela-bg,#0b0e11);color:var(--vela-fg)}
+:root[data-theme=light] .pf-native,:root[data-theme=light] select.pf-native option,:root[data-theme=light] select.pf-native optgroup{color-scheme:light}
 .pf-dialog{width:min(92vw,var(--pf-w,380px))}
 .pf-dialog .body{display:flex;flex-direction:column;gap:10px}
 .pf-foot{display:flex;justify-content:flex-end;gap:8px}
