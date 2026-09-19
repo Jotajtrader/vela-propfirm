@@ -71,6 +71,16 @@ if (params.has('demo')) {
         const px = sim.currentPrice();
         sim.placeOrder(1, 'limit', px - 20, 1, 5, 10);
         sim.placeOrder(-1, 'stop', px - 30, 1, 5, 10);
+        // `&panel=1`: abre el panel Backtest por su botón del topbar, como lo haría el usuario.
+        if (params.has('panel')) setTimeout(() => (document.querySelector('[aria-label="Prop firm backtest"]') as HTMLElement | null)?.click(), 300);
+        // `&dialog=buy|order|agent`: abre además un diálogo desde el panel, para revisarlo en captura.
+        const dlg = params.get('dialog');
+        if (dlg)
+            setTimeout(() => {
+                const label = dlg === 'buy' ? '+ Comprar cuentas' : dlg === 'order' ? '▲ COMPRAR' : '⚙ Configurar';
+                const b = [...document.querySelectorAll<HTMLButtonElement>('.pf-btn')].find((x) => x.textContent?.trim() === label);
+                b?.click();
+            }, 900);
     });
 }
 

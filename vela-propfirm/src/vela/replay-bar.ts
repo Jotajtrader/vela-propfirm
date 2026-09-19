@@ -10,9 +10,10 @@ import { getSimulator } from './context';
 
 const STYLE_ID = 'propfirm-replay-bar';
 const CSS = `
-.pf-replay{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);z-index:20;display:flex;gap:4px;align-items:center;
+.pf-replay{position:absolute;left:50%;bottom:36px;transform:translateX(-50%);z-index:20;display:flex;gap:4px;align-items:center;
   padding:5px 8px;border-radius:var(--vela-radius-md);background:var(--vela-surface-overlay);border:1px solid var(--vela-border-soft);
-  color:var(--vela-fg);font:12px/1.3 var(--vela-font-family,system-ui);box-shadow:0 4px 16px rgba(0,0,0,.35);white-space:nowrap;max-width:calc(100% - 24px);overflow:auto}
+  color:var(--vela-fg);font:12px/1.3 var(--vela-font-family,system-ui);box-shadow:0 4px 16px rgba(0,0,0,.35);white-space:nowrap;
+  max-width:calc(100% - 96px);flex-wrap:wrap;justify-content:center;row-gap:4px}
 .pf-replay[hidden]{display:none}
 .pf-replay .grp{display:flex;gap:3px;align-items:center;padding-right:6px;margin-right:2px;border-right:1px solid var(--vela-border-soft)}
 .pf-replay .grp:last-child{border-right:none;padding-right:0;margin-right:0}
@@ -95,7 +96,11 @@ function mountReplayBar(ctx: WidgetContext, sim: Simulator): () => void {
     g5.append(intrabar, ff, ffStatus);
 
     bar.append(g1, g2, g3, g4, g5);
-    ctx.host.appendChild(bar);
+    // Dentro de la celda del chart (no del widget entero): así queda centrada sobre las velas y
+    // nunca pisa el dock de paneles de la derecha.
+    const cell = ctx.host.querySelector<HTMLElement>('.vela-cell') ?? ctx.host;
+    if (cell !== ctx.host && getComputedStyle(cell).position === 'static') cell.style.position = 'relative';
+    cell.appendChild(bar);
 
     let raf = 0;
     const paint = (): void => {
