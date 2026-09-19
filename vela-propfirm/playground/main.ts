@@ -1,105 +1,18 @@
-// FASE 0 — spike. Valida los dos riesgos del diseño antes de portar la UI:
-//  1. el replay entra por la vía de datos en vivo (ReplayProvider.subscribe) y Vela recalcula
-//     indicadores nativos + Pine en cada paso;
-//  2. un salto grande (saltar día) y el Reset (rebobinar) se resuelven forzando una recarga del
-//     mercado contra la caché de barras cerradas de Vela.
-// La barra de control de abajo es provisional: la definitiva llega en la fase 2.
-// `?autotest=1` corre la secuencia completa sin intervención y escribe el resultado en #spike-results.
+// Playground de vela-propfirm: el workspace de Vela + Pine (worker) + el simulador de fondeo.
+// `?autotest=1` corre una secuencia sin intervención y escribe el resultado en #spike-results.
 import { VelaWorkspace } from '@luxalgo/vela/workspace';
-import { sharedBarStore, type Vela } from '@luxalgo/vela';
-import { registerWidgetAttachment } from '@luxalgo/vela/plugin';
 import { PineWorkerEngine } from '@luxalgo/vela-pinets';
-import { ReplayProvider } from '../src/vela/ReplayProvider';
-import { genSample, fmtTime } from '../src/engine/data';
+import { Simulator } from '../src/engine/Simulator';
+import { genSample } from '../src/engine/data';
+import { createPropFirm, currentOverlay } from '../src/vela';
 
 const params = new URLSearchParams(location.search);
 const AUTOTEST = params.has('autotest');
-// Estrategia de recarga forzada para saltos/Reset. `setMarket` con el mismo mercado es no-op, así
-// que hay que cambiar la identidad: 'session' alterna regular/extended (Vela conserva el zoom en un
-// flip de sesión); 'suffix' cambia el sufijo opaco del ticker (NQ.r1 → NQ.r2). `?reload=suffix` prueba la otra.
-const RELOAD: 'session' | 'suffix' = params.get('reload') === 'suffix' ? 'suffix' : 'session';
 const TF = '5';
 
-const replay = new ReplayProvider();
-replay.load(genSample(6, 180));
-
-let generation = 0;
-async function forceReload(chart: Vela): Promise<void> {
-    sharedBarStore.clear();
-    generation++;
-    if (RELOAD === 'session') await chart.setMarket({ session: generation % 2 ? 'extended' : 'regular' });
-    else await chart.setMarket({ symbol: `replay:NQ.r${generation}` });
-}
-
-function endOfDayIndex(): number {
-    const today = replay.current()?.day;
-    let i = replay.cursor;
-    while (i < replay.length - 1 && replay.native[i]!.day === today) i++;
-    return i;
-}
-
-registerWidgetAttachment({
-    id: 'propfirm.spike-bar',
-    mount: (ctx) => {
-        const bar = document.createElement('div');
-        bar.style.cssText =
-            'position:absolute;left:50%;bottom:44px;transform:translateX(-50%);z-index:20;display:flex;gap:6px;align-items:center;' +
-            'padding:6px 10px;border-radius:var(--vela-radius-md);background:var(--vela-surface-overlay);border:1px solid var(--vela-border-soft);' +
-            'color:var(--vela-fg);font:12px/1.4 var(--vela-font-family,system-ui);box-shadow:0 4px 16px #0006';
-        const mk = (label: string, onClick: () => void): HTMLButtonElement => {
-            const b = document.createElement('button');
-            b.textContent = label;
-            b.style.cssText =
-                'all:unset;padding:4px 10px;border-radius:var(--vela-radius-sm);background:var(--vela-surface-raised,#2a2e39);cursor:pointer;';
-            b.addEventListener('click', onClick);
-            bar.appendChild(b);
-            return b;
-        };
-        const status = document.createElement('span');
-        status.style.cssText = 'margin-left:8px;color:var(--vela-fg-muted);font-variant-numeric:tabular-nums;';
-
-        const startIdx = replay.cursor;
-        let timer: ReturnType<typeof setInterval> | null = null;
-        const refresh = (): void => {
-            const b = replay.current();
-            status.textContent = b ? `bar ${replay.cursor + 1} / ${replay.length} · ${b.day} ${fmtTime(b.t)}` : '—';
-        };
-        const stop = (): void => {
-            if (timer) clearInterval(timer);
-            timer = null;
-            play.textContent = '▶ Play';
-        };
-        const step = (): void => {
-            if (!replay.step()) stop();
-            refresh();
-        };
-        const play = mk('▶ Play', () => {
-            if (timer) return stop();
-            play.textContent = '⏸ Pause';
-            timer = setInterval(step, 120);
-        });
-        mk('Step ▸', step);
-        mk('⏭ Saltar día', () => {
-            stop();
-            replay.setCursor(endOfDayIndex());
-            refresh();
-            void forceReload(ctx.chart).then(() => ctx.toast(`Recarga tras salto (${RELOAD})`, 'info'));
-        });
-        mk('🔄 Reset', () => {
-            stop();
-            replay.setCursor(startIdx);
-            refresh();
-            void forceReload(ctx.chart).then(() => ctx.toast(`Reset → bar ${startIdx + 1} (${RELOAD})`, 'info'));
-        });
-        bar.appendChild(status);
-        refresh();
-        ctx.host.appendChild(bar);
-        return () => {
-            stop();
-            bar.remove();
-        };
-    },
-});
+const sim = new Simulator();
+sim.loadBars(genSample(6, 180));
+const propfirm = createPropFirm(sim);
 
 const ws = new VelaWorkspace('#chart', {
     layout: false,
@@ -110,7 +23,7 @@ const ws = new VelaWorkspace('#chart', {
     autofocus: true,
     persist: false,
     timeframes: ['1', '5', '15', '30', '60', '240', 'D'],
-    providers: { replay: () => replay },
+    providers: { replay: () => propfirm.provider },
     engines: { pine: () => new PineWorkerEngine() },
     defaultLanguage: 'pine',
     indicators: [
@@ -133,21 +46,33 @@ plot(close, "c", display=display.none)`,
         },
     ],
 });
+const install = propfirm.attach(ws);
 
-// Telemetría del spike: cada barra que entra al core y cada recálculo del script.
 let barsIn = 0;
 let runs = 0;
 ws.chart.on('bar', () => {
     barsIn++;
 });
-ws.on('script:run', (run) => {
+ws.on('script:run', () => {
     runs++;
-    if (!AUTOTEST && runs % 25 === 0) console.log(`[spike] ${barsIn} barras recibidas · ${runs} runs de "${run.title}" (última causa: ${run.cause})`);
 });
-void ws.chart.ready().then(() => console.log('[spike] chart listo — cursor en', replay.cursor + 1, '/', replay.length));
+void ws.chart.ready().then(() => console.log('[propfirm] chart listo — cursor en', sim.state.idx + 1, '/', sim.state.bars.length));
 
-(window as unknown as { ws: VelaWorkspace; replay: ReplayProvider }).ws = ws;
-(window as unknown as { ws: VelaWorkspace; replay: ReplayProvider }).replay = replay;
+Object.assign(window as unknown as Record<string, unknown>, { ws, sim, propfirm: install });
+
+// `?demo=1`: deja una posición con SL/TP, órdenes de trabajo y un trade cerrado a la vista.
+if (params.has('demo')) {
+    void ws.chart.ready().then(() => {
+        sim.buyAccounts(sim.state.templates[0]!, 1);
+        sim.openPosition(1, 2, 6, 9);
+        for (let i = 0; i < 25; i++) sim.step();
+        sim.flatten();
+        sim.openPosition(-1, 2, 12, 18);
+        const px = sim.currentPrice();
+        sim.placeOrder(1, 'limit', px - 20, 1, 5, 10);
+        sim.placeOrder(-1, 'stop', px - 30, 1, 5, 10);
+    });
+}
 
 // ── autotest ──────────────────────────────────────────────────────────────────────────────
 interface Run {
@@ -186,8 +111,6 @@ async function runAutotest(): Promise<void> {
         }
         return pred();
     };
-
-    // Objeto contenedor a propósito: TS estrecha un `let` asignado solo desde un callback a `never`.
     const probe: { last: Run | null } = { last: null };
     ws.on('script:run', (run) => {
         if (run.title === 'PROBE') probe.last = run;
@@ -196,53 +119,57 @@ async function runAutotest(): Promise<void> {
     const probeT = (): number => (last()?.plots as Record<string, number> | undefined)?.t ?? NaN;
     const probeC = (): number => (last()?.plots as Record<string, number> | undefined)?.c ?? NaN;
     const expected = (): { t: number; c: number } => {
-        const b = replay.currentBucket(TF)!;
+        const b = propfirm.provider.currentBucket(TF)!;
         return { t: b.t.getTime(), c: b.c };
     };
     const probeMatches = (): boolean => probeT() === expected().t && probeC() === expected().c;
     const describeProbe = (): string => `probe t=${probeT()} c=${probeC()} · esperado t=${expected().t} c=${expected().c} · bar#${last()?.bar} causa=${last()?.cause}`;
 
     try {
-        log(`reload=${RELOAD} tf=${TF} dataset=${replay.length} barras · cursor inicial ${replay.cursor + 1}`);
+        log(`tf=${TF} dataset=${sim.state.bars.length} barras · cursor inicial ${sim.state.idx + 1}`);
         await ws.chart.ready();
-        log('chart.ready()');
         check(await waitFor(() => last() != null, 20000), '1. Pine (worker) ejecutó la sonda tras la carga inicial', describeProbe());
         check(probeMatches(), '2. carga inicial: última vela de Pine = cubeta del cursor', describeProbe());
+        check(!!document.querySelector('.pf-replay'), '3. la barra de replay está montada sobre el chart');
 
         const bars0 = barsIn;
-        const bar0 = last()?.bar ?? -1;
         for (let i = 0; i < 12; i++) {
-            replay.step();
+            sim.step();
             await sleep(40);
         }
-        const streamed = await waitFor(probeMatches, 6000);
-        check(streamed, '3. stream: 12 pasos por subscribe → Pine recalculó hasta el cursor', describeProbe());
-        check(barsIn - bars0 === 12, '4. stream: el core recibió exactamente 12 barras', `recibidas ${barsIn - bars0}`);
-        check((last()?.bar ?? -1) > bar0, '5. stream: el índice de barra creció (5m: 12 pasos de 1m ≈ 2-3 velas nuevas)', `bar# ${bar0} → ${last()?.bar}`);
+        check(await waitFor(probeMatches, 6000), '4. stream: 12 pasos del simulador → Pine recalculó hasta el cursor', describeProbe());
+        check(barsIn - bars0 === 12, '5. stream: el core recibió exactamente 12 barras', `recibidas ${barsIn - bars0}`);
 
-        const beforeJump = replay.cursor;
-        replay.setCursor(endOfDayIndex());
+        sim.buyAccounts(sim.state.templates[0]!, 1);
+        sim.openPosition(1, 2, 10, 20);
+        await sleep(50);
+        const ov = currentOverlay();
+        check(!!ov?.position && ov.position.side === 1 && ov.position.qty === 2, '6. overlay: la posición abierta llegó a la capa', JSON.stringify(ov?.position));
+        check(ov?.ddPrice != null && ov.dailyPrice != null, '7. overlay: niveles de DD y límite diario calculados', `dd=${ov?.ddPrice} dll=${ov?.dailyPrice}`);
+
+        const startIdx = sim.state.idx;
         const barBeforeJump = last()?.bar ?? -1;
-        await forceReload(ws.chart);
-        const jumped = await waitFor(() => probeMatches() && (last()?.bar ?? -1) > barBeforeJump, 10000);
-        check(jumped, `6. salto: saltar día (${beforeJump + 1} → ${replay.cursor + 1}) + recarga forzada → Pine ve el nuevo cursor`, describeProbe());
+        sim.skipDay();
+        check(await waitFor(() => probeMatches() && (last()?.bar ?? -1) > barBeforeJump, 12000), `8. saltar día (${startIdx + 1} → ${sim.state.idx + 1}) → recarga → Pine ve el nuevo cursor`, describeProbe());
+        check(!sim.state.accounts[0]!.position && sim.state.accounts[0]!.tradeLog.length === 1, '9. saltar día flateó la posición y quedó en el registro', `trades=${sim.state.accounts[0]!.tradeLog.length}`);
+        check(install.bridge.reloads === 1, '10. una sola recarga forzada para el salto', `reloads=${install.bridge.reloads}`);
 
-        const startIdx = 80;
         const barBeforeReset = last()?.bar ?? -1;
-        replay.setCursor(startIdx);
-        await forceReload(ws.chart);
-        const rewound = await waitFor(() => probeMatches() && (last()?.bar ?? -1) < barBeforeReset, 10000);
-        check(rewound, `7. reset: rebobinado a la barra ${startIdx + 1} + recarga → la caché no devolvió barras futuras`, `${describeProbe()} · bar# ${barBeforeReset} → ${last()?.bar}`);
+        sim.resetAgentRun();
+        check(await waitFor(() => probeMatches() && (last()?.bar ?? -1) < barBeforeReset, 12000), '11. Reset: rebobinado a la foto + recarga → la caché no devolvió barras futuras', `${describeProbe()} · bar# ${barBeforeReset} → ${last()?.bar}`);
+        check(sim.state.accounts.length === 0, '12. Reset deshizo la compra (foto tomada antes de la primera compra)');
 
         const bars1 = barsIn;
         for (let i = 0; i < 6; i++) {
-            replay.step();
+            sim.step();
             await sleep(40);
         }
-        const streamed2 = await waitFor(probeMatches, 6000);
-        check(streamed2, '8. stream tras recarga: la suscripción se restableció sola', describeProbe());
-        check(barsIn - bars1 === 6, '9. stream tras recarga: 6 barras recibidas', `recibidas ${barsIn - bars1}`);
-        check(!!document.querySelector('.vela-topbar, [class*="vela-"]'), '10. shell de Vela montado (chrome presente)');
+        check(await waitFor(probeMatches, 6000), '13. stream tras recarga: la suscripción se restableció sola', describeProbe());
+        check(barsIn - bars1 === 6, '14. stream tras recarga: 6 barras recibidas', `recibidas ${barsIn - bars1}`);
+
+        await sim.fastForward({ chunkMs: 20 });
+        check(await waitFor(() => probeMatches() && sim.state.idx === sim.state.bars.length - 1, 15000), '15. modo rápido hasta el final → una recarga → Pine ve la última barra', describeProbe());
+        check(install.bridge.reloads === 3, '16. recargas totales = salto + reset + modo rápido', `reloads=${install.bridge.reloads}`);
     } catch (err) {
         fail++;
         log(`EXCEPCIÓN: ${(err as Error)?.stack ?? String(err)}`);

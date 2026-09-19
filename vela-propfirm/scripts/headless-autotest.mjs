@@ -70,20 +70,32 @@ try {
     await send('Runtime.enable');
     await send('Log.enable');
 
+    // WAIT_MS=n: en vez de esperar el "SPIKE DONE", espera n ms (modo captura visual).
+    const waitMs = Number(process.env.WAIT_MS) || 0;
     const deadline = Date.now() + timeoutMs;
     let title = '';
-    while (Date.now() < deadline) {
-        title = (await evalJs('document.title')) ?? '';
-        if (title.startsWith('SPIKE DONE')) break;
-        await sleep(500);
+    if (waitMs > 0) await sleep(waitMs);
+    else {
+        while (Date.now() < deadline) {
+            title = (await evalJs('document.title')) ?? '';
+            if (title.startsWith('SPIKE DONE')) break;
+            await sleep(500);
+        }
+    }
+    // SCREENSHOT=ruta.png: captura la página al terminar.
+    if (process.env.SCREENSHOT) {
+        const shot = await send('Page.captureScreenshot', { format: 'png' });
+        const { writeFileSync } = await import('node:fs');
+        writeFileSync(process.env.SCREENSHOT, Buffer.from(shot.result.data, 'base64'));
+        console.log(`captura: ${process.env.SCREENSHOT}`);
     }
     const results = await evalJs('document.getElementById("spike-results")?.textContent ?? "(sin resultados)"');
     console.log(results);
     console.log('\n--- consola del navegador ---');
     for (const l of logs) console.log(l);
-    console.log(`\n${title || '(timeout sin DONE)'}`);
+    console.log(`\n${title || (waitMs > 0 ? '(modo captura)' : '(timeout sin DONE)')}`);
     ws.close();
-    process.exitCode = title.includes('fail=0') ? 0 : 1;
+    process.exitCode = waitMs > 0 || title.includes('fail=0') ? 0 : 1;
 } finally {
     proc.kill();
 }
