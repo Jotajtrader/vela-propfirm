@@ -1,0 +1,24 @@
+{
+  "name": "vela-propfirm",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Simulador de fondeo (prop firms) como plugin de Vela: replay de barras, cuentas, agente y tracker.",
+  "type": "module",
+  "scripts": {
+    "playground": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@luxalgo/vela": "^0.7.6",
+    "@luxalgo/vela-pinets": "^0.2.12",
+    "pinets": "^0.9.34"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "~5.9.3",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.0"
+  }
+}
