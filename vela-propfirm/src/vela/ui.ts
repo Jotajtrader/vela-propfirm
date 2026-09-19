@@ -93,8 +93,8 @@ select.pf-native option,select.pf-native optgroup{background-color:var(--lux-bg-
    agrandarlos también los haría sentir menos "de paso"). Selector compuesto .pf-panel.pf para
    ganarle a .pf .sec / .pf .hint (misma especificidad si no) sin depender del orden de la hoja. */
 .pf-panel.pf{font-size:13px}
-.pf-panel.pf .sec{margin:12px 14px;padding:16px}
-.pf-panel.pf .sec h3{font-size:11px;margin-bottom:12px;gap:8px}
+.pf-panel.pf .sec{margin:10px 14px;padding:13px 14px}
+.pf-panel.pf .sec h3{font-size:11px;margin-bottom:9px;gap:8px}
 .pf-panel.pf .sec h3::before{width:4px;height:13px}
 .pf-panel.pf .hint{font-size:12.5px}
 .pf-panel .pf-btn{padding:9px 14px}
