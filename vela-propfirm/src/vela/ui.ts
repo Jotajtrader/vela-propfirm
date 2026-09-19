@@ -4,6 +4,10 @@ import { injectStyles } from '@luxalgo/vela/ui';
 
 export const STYLE_ID = 'propfirm-ui';
 export const CSS = `
+/* el atributo [hidden] debe ganarle a cualquier clase que fije su propio display (.row/.col fijan
+   flex) — si no, un elemento oculto con esas clases queda visible igual (empate de especificidad
+   resuelto por orden de aparición, no por [hidden]). */
+.pf [hidden]{display:none !important}
 .pf{font:12px/1.4 var(--vela-font-family,system-ui);color:var(--vela-fg)}
 .pf .sec{padding:10px 12px;border-bottom:1px solid var(--vela-border-soft)}
 .pf .sec h3{margin:0 0 8px;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--vela-fg-muted)}
@@ -65,6 +69,11 @@ select.pf-native option,select.pf-native optgroup{background-color:var(--vela-bg
 .pf-title.green{color:var(--vela-up,#26a65b)} .pf-title.muted{color:var(--vela-fg-muted)}
 .pf-toggrow{display:flex;align-items:center;gap:8px}
 .pf-toggrow .grow{flex:1}
+.pf-unit-field{display:flex;align-items:center;gap:4px}
+.pf-unit-seg{display:flex;border:1px solid var(--vela-border-soft);border-radius:var(--vela-radius-sm);overflow:hidden}
+.pf-unit-seg button{all:unset;padding:4px 6px;font-size:10px;color:var(--vela-fg-muted);cursor:pointer;line-height:1}
+.pf-unit-seg button.on{background:var(--vela-accent);color:var(--vela-fg-on-accent,#0b0e14)}
+.pf-unit-seg button:disabled{opacity:.4;cursor:not-allowed}
 `;
 
 export function ensureStyles(doc: Document): void {

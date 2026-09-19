@@ -4,7 +4,7 @@ import type { AtmPreset, HourMinute, Sim, SimHooks, SimMode, SimState, Side, Tem
 import { retagBarsWithCutoff, type Rng, type SimBar } from './data';
 import { atmPresetsFor, defaultAtmPresets, defaultTemplates } from './templates';
 import { activateFundedAccount, buyAccount, collectPayout, tplOf } from './rules';
-import { activeAcct, cancelOrder, closePosition, curPx, openPosition, placeOrder, pv } from './trading';
+import { activeAcct, cancelOrder, closePosition, curPx, openPosition, placeOrder, pv, updatePositionLevels } from './trading';
 import * as replay from './replay';
 import * as agent from './agent';
 import { exportSession, importSession, type SessionDocument } from './session';
@@ -307,6 +307,11 @@ export class Simulator implements Sim {
     /** Valor en $ de un punto para el instrumento activo (para el P&L abierto fuera del motor). */
     pointValue(): number {
         return pv(this.state);
+    }
+    /** Ajusta el SL/TP (precios absolutos) de la posición abierta de la cuenta activa. */
+    updatePositionLevels(patch: { sl?: number | null; tp?: number | null }): boolean {
+        const acc = activeAcct(this.state);
+        return acc ? updatePositionLevels(this, acc, patch) : false;
     }
 
     // ── agente ──────────────────────────────────────────────────────────────────────────

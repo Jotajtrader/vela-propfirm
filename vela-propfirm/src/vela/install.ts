@@ -10,6 +10,7 @@ import { OVERLAY_ID } from './overlay';
 import './replay-bar';
 import './panel-order';
 import './order-ticket';
+import './position-adjust';
 import './panel-backtest';
 import './panel-tracker';
 import './persistence';

@@ -54,6 +54,20 @@ export function openPosition(sim: Sim, side: Side, qty: number, slPts: number | 
     return true;
 }
 
+/**
+ * Ajusta el SL/TP de la posición YA ABIERTA de `acc` (precios absolutos, no puntos) — capacidad
+ * nueva sin equivalente en el HTML (arrastrar el nivel en el chart y confirmar en el panel de
+ * orden). `null` en un campo lo desactiva; pasar `undefined` deja ese nivel como está.
+ */
+export function updatePositionLevels(sim: Sim, acc: Account, patch: { sl?: number | null; tp?: number | null }): boolean {
+    const p = acc.position;
+    if (!p) return false;
+    if (patch.sl !== undefined) p.sl = patch.sl;
+    if (patch.tp !== undefined) p.tp = patch.tp;
+    sim.hooks.render();
+    return true;
+}
+
 export function closePosition(sim: Sim, acc: Account, exitPx: number, reason: string, exitIdx?: number | null): void {
     const { state, hooks } = sim;
     const p = acc.position;

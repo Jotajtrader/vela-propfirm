@@ -1,10 +1,13 @@
-// El panel de orden: Market/Limit/Stop + cantidad + SL/TP, editables a mano (precio o puntos) O
+// El panel de orden: Market/Limit/Stop + cantidad + SL/TP (en puntos o en $), editables a mano O
 // arrastrando en el chart — acoplado a la derecha, como Trading Panel/Centro de control, NUNCA un
-// modal (un modal bloqueaba el chart e impedía arrastrar). Usa la herramienta nativa de Vela
-// "Long/Short Position" (`position`) como manija visual: el cuadro persiste en el chart aunque el
-// usuario cambie de panel sin confirmar — reabrir esta pestaña retoma exactamente donde quedó.
-// Vela no emite un evento continuo durante el arrastre (solo al soltar), así que sondeamos
-// `chart.drawings.all()` en cada frame mientras el panel está VISIBLE para reflejar los precios.
+// modal. También atiende los pedidos de AJUSTE: arrastrar el SL/TP de una posición YA ABIERTA
+// (position-adjust.ts) abre este mismo panel en modo confirmación ("¿Seguro que querés mover…?").
+// Usa la herramienta nativa de Vela "Long/Short Position" (`position`) como manija visual para la
+// orden nueva: el cuadro persiste en el chart aunque el usuario cambie de panel sin confirmar —
+// reabrir esta pestaña retoma exactamente donde quedó. Vela no emite un evento continuo durante el
+// arrastre (solo al soltar), así que sondeamos `chart.drawings.all()` en cada frame mientras el
+// panel está VISIBLE para reflejar los precios y, en Market, mantener la entrada clavada al precio
+// actual (el usuario puede arrastrar SL/TP; la entrada se re-clava sola cada frame).
 import { registerIcon, registerSidePanel, type WidgetContext } from '@luxalgo/vela/plugin';
 import type { SerializedDrawing } from '@luxalgo/vela';
 import { NumberInput, Switch, svg16 } from '@luxalgo/vela/ui';
@@ -12,9 +15,11 @@ import type { Simulator } from '../engine/Simulator';
 import type { OrderType, Side } from '../engine/types';
 import { canTrade } from '../engine/trading';
 import { timeframeToMinutes } from './ReplayProvider';
-import { currentPendingOrder } from './order-request';
+import { currentPendingRequest, type PendingRequest } from './order-request';
+import { pushDraftOverlay } from './overlay';
 import { getSimulator } from './context';
 import { btn, ensureStyles, h, labeled } from './ui';
+import { pointsUsdField, type PointsUsdField } from './fields';
 
 export const ORDER_PANEL_ID = 'propfirm.order';
 
@@ -27,7 +32,7 @@ const BOX_WIDTH_BARS = 10;
 const LEVEL_EPS = 1e-6;
 
 interface PanelApi {
-    startOrder(side: Side, qty: number): void;
+    apply(req: PendingRequest): void;
     resumePoll(): void;
     dispose(): void;
 }
@@ -39,6 +44,7 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
     let drawingId: string | null = null;
     let raf = 0;
 
+    // ── formulario de orden nueva ──────────────────────────────────────────────────────
     const heading = h('div', 'row');
     const headingLabel = h('span');
     headingLabel.style.cssText = 'font-size:15px;font-weight:700';
@@ -54,38 +60,58 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
     const price = new NumberInput({ value: 0, step: 0.25, size: 'md', fill: true, commit: 'blur', steppers: false, onChange: (v) => writeDrawing({ entry: v }) });
     const priceRow = labeled('Precio de entrada', price.el);
     priceRow.hidden = true;
-    const qtyIn = new NumberInput({ value: 1, min: 1, step: 1, integer: true, size: 'md', fill: true, commit: 'blur' });
+    const marketHint = h('div', 'mini', '🔒 Entrada clavada al precio de mercado actual.');
+    marketHint.style.color = 'var(--vela-fg-muted)';
+    const qtyIn = new NumberInput({ value: 1, min: 1, step: 1, integer: true, size: 'md', fill: true, commit: 'blur', onChange: () => { slField.refreshConversion(); tpField.refreshConversion(); } });
     const slOn = new Switch({ size: 'sm', checked: true });
-    const slVal = new NumberInput({ value: DEFAULT_SL_PTS, min: 0, step: 1, size: 'sm', fill: false, commit: 'blur', steppers: false, onChange: (v) => writeDrawing({ slPts: v }) });
+    const slField: PointsUsdField = pointsUsdField({ points: DEFAULT_SL_PTS, qty: () => qtyIn.value, pointValue: () => sim.pointValue(), onChange: (pts) => writeDrawing({ slPts: pts }) });
     const tpOn = new Switch({ size: 'sm', checked: true });
-    const tpVal = new NumberInput({ value: DEFAULT_TP_PTS, min: 0, step: 1, size: 'sm', fill: false, commit: 'blur', steppers: false, onChange: (v) => writeDrawing({ tpPts: v }) });
-    slOn.el.addEventListener('click', () => (slVal.input.disabled = !slOn.checked));
-    tpOn.el.addEventListener('click', () => (tpVal.input.disabled = !tpOn.checked));
-    const toggRow = (sw: Switch, label: string, num: NumberInput): HTMLElement => {
+    const tpField: PointsUsdField = pointsUsdField({ points: DEFAULT_TP_PTS, qty: () => qtyIn.value, pointValue: () => sim.pointValue(), onChange: (pts) => writeDrawing({ tpPts: pts }) });
+    slOn.el.addEventListener('click', () => slField.setDisabled(!slOn.checked));
+    tpOn.el.addEventListener('click', () => tpField.setDisabled(!tpOn.checked));
+    const toggRow = (sw: Switch, label: string, f: PointsUsdField): HTMLElement => {
         const r = h('div', 'pf-toggrow');
-        r.append(sw.el, h('span', 'grow', label), num.el);
+        r.append(sw.el, h('span', 'grow', label), f.el);
         return r;
     };
-    const dragHint = h('div', 'hint', 'Arrastrá el cuadro en el chart para mover la entrada, el SL o el TP — como en TradingView. También podés escribir los valores acá.');
+    const dragHint = h('div', 'hint', 'Arrastrá el cuadro en el chart para mover el SL/TP (y la entrada, si es Limit o Stop) — como en TradingView. También podés escribir los valores acá.');
     const acctLbl = h('div', 'mini');
     const foot = h('div', 'row');
     foot.style.marginTop = '4px';
-    const cancelBtn = btn('Cancelar', () => cancel());
-    const confirmBtn = btn('Confirmar', () => confirm(), 'on');
+    const cancelBtn = btn('Cancelar', () => cancelNew());
+    const confirmBtn = btn('Confirmar', () => confirmNew(), 'on');
     cancelBtn.style.flex = '1';
     confirmBtn.style.flex = '1';
     foot.append(cancelBtn, confirmBtn);
-    const emptyState = h('div', 'hint', 'Usá los botones Comprar / Vender del chart (arriba a la izquierda) para armar una orden acá.');
 
     const form = h('div', 'col');
-    form.append(heading, seg, priceRow, labeled('Cantidad', qtyIn.el), toggRow(slOn, 'Stop Loss (pts)', slVal), toggRow(tpOn, 'Take Profit (pts)', tpVal), dragHint, acctLbl, foot);
+    form.append(heading, seg, priceRow, marketHint, labeled('Cantidad', qtyIn.el), toggRow(slOn, 'Stop Loss', slField), toggRow(tpOn, 'Take Profit', tpField), dragHint, acctLbl, foot);
+
+    // ── confirmación de ajuste (posición ya abierta) ───────────────────────────────────
+    const adjustMsg = h('div');
+    adjustMsg.style.fontSize = '13px';
+    const adjustFoot = h('div', 'row');
+    const adjustNo = btn('No', () => cancelAdjust());
+    const adjustYes = btn('Sí, mover', () => confirmAdjust(), 'on');
+    adjustNo.style.flex = '1';
+    adjustYes.style.flex = '1';
+    adjustFoot.append(adjustNo, adjustYes);
+    const adjustPane = h('div', 'col');
+    adjustPane.append(adjustMsg, adjustFoot);
+
+    const emptyState = h('div', 'hint', 'Usá los botones Comprar / Vender del chart (arriba a la izquierda) para armar una orden acá.');
+
     form.hidden = true;
-    body.append(form, emptyState);
+    adjustPane.hidden = true;
+    body.append(form, adjustPane, emptyState);
+
+    let pendingAdjust: { field: 'sl' | 'tp'; price: number } | null = null;
 
     function setType(t: OrderType): void {
         type = t;
         for (const k of Object.keys(segBtns) as OrderType[]) segBtns[k].classList.toggle('on', k === t);
         priceRow.hidden = t === 'market';
+        marketHint.hidden = t !== 'market';
     }
 
     function currentAnchors(): SerializedDrawing['anchors'] | null {
@@ -93,13 +119,17 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
         return ctx.chart.drawings.all().find((d) => d.id === drawingId)?.anchors ?? null;
     }
 
+    function publishDraft(entry: number, sl: number, tp: number): void {
+        pushDraftOverlay({ side: dirSide, entry, sl: slOn.checked ? entry - dirSide * sl : null, tp: tpOn.checked ? entry + dirSide * tp : null, type });
+    }
+
     function writeDrawing(patch: { entry?: number; slPts?: number; tpPts?: number }): void {
         if (!drawingId) return;
         const anchors = currentAnchors();
         if (!anchors) return;
         const entry = patch.entry ?? price.value;
-        const sl = patch.slPts ?? slVal.value;
-        const tp = patch.tpPts ?? tpVal.value;
+        const sl = patch.slPts ?? slField.getPoints();
+        const tp = patch.tpPts ?? tpField.getPoints();
         const et = anchors[0]!.time;
         const lt = anchors[1]!.time;
         ctx.chart.drawings.update(drawingId, {
@@ -109,6 +139,7 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
                 { time: lt, price: entry + dirSide * tp },
             ],
         });
+        publishDraft(entry, sl, tp);
     }
 
     let lastSeen: string | null = null;
@@ -119,15 +150,26 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
         const stop = anchors[1]!.price;
         const target = anchors[2]!.price;
         const key = `${entry}|${stop}|${target}`;
-        if (key === lastSeen) return;
-        lastSeen = key;
-        dirSide = target >= entry ? 1 : -1;
-        const sl = Math.abs(entry - stop);
-        const tp = Math.abs(target - entry);
-        if (Math.abs(price.value - entry) > LEVEL_EPS) price.setValue(entry);
-        if (Math.abs(slVal.value - sl) > LEVEL_EPS) slVal.setValue(sl);
-        if (Math.abs(tpVal.value - tp) > LEVEL_EPS) tpVal.setValue(tp);
-        paintSide();
+        if (key !== lastSeen) {
+            lastSeen = key;
+            dirSide = target >= entry ? 1 : -1;
+            const sl = Math.abs(entry - stop);
+            const tp = Math.abs(target - entry);
+            if (Math.abs(price.value - entry) > LEVEL_EPS) price.setValue(entry);
+            if (Math.abs(slField.getPoints() - sl) > LEVEL_EPS) slField.setPoints(sl);
+            if (Math.abs(tpField.getPoints() - tp) > LEVEL_EPS) tpField.setPoints(tp);
+            paintSide();
+            publishDraft(entry, sl, tp);
+        }
+        // Market: la entrada queda clavada al precio actual — se corrige SOLO el anchor de
+        // entrada (nunca el de stop/target) para no pisar un arrastre de SL/TP en curso.
+        if (type === 'market') {
+            const fresh = sim.currentPrice();
+            if (Math.abs(anchors[0]!.price - fresh) > LEVEL_EPS && drawingId) {
+                ctx.chart.drawings.update(drawingId, { anchors: [{ time: anchors[0]!.time, price: fresh }, anchors[1]!, anchors[2]!] });
+                lastSeen = null; // fuerza releer en el próximo tick (la entrada acaba de moverse)
+            }
+        }
     }
 
     function paintSide(): void {
@@ -140,6 +182,7 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
         if (drawingId) ctx.chart.drawings.remove(drawingId);
         drawingId = null;
         lastSeen = null;
+        pushDraftOverlay(null);
     }
 
     function tick(): void {
@@ -150,20 +193,35 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
         if (!raf && drawingId) raf = requestAnimationFrame(tick);
     }
 
-    function startOrder(side: Side, qty: number): void {
-        removeDrawing();
+    function showForm(): void {
         form.hidden = false;
+        adjustPane.hidden = true;
         emptyState.hidden = true;
+    }
+    function showAdjust(): void {
+        form.hidden = true;
+        adjustPane.hidden = false;
+        emptyState.hidden = true;
+    }
+    function showEmpty(): void {
+        form.hidden = true;
+        adjustPane.hidden = true;
+        emptyState.hidden = false;
+    }
+
+    function startNewOrder(side: Side, qty: number): void {
+        removeDrawing();
+        showForm();
         dirSide = side;
         type = 'market';
         setType('market');
         qtyIn.setValue(Math.max(1, Math.trunc(qty) || 1));
         slOn.setChecked(true);
-        slVal.setValue(DEFAULT_SL_PTS);
-        slVal.input.disabled = false;
+        slField.setPoints(DEFAULT_SL_PTS);
+        slField.setDisabled(false);
         tpOn.setChecked(true);
-        tpVal.setValue(DEFAULT_TP_PTS);
-        tpVal.input.disabled = false;
+        tpField.setPoints(DEFAULT_TP_PTS);
+        tpField.setDisabled(false);
         paintSide();
         const acc = sim.activeAccount();
         const accStatus = acc?.status;
@@ -179,23 +237,27 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
                 { time: t1, price: entryPx - side * DEFAULT_SL_PTS },
                 { time: t1, price: entryPx + side * DEFAULT_TP_PTS },
             ],
+            // Las etiquetas propias del cuadro (header/%/precio) se apagan: las nuestras (hline con
+            // nombre + precio en el eje, en overlay.ts) son las que se ven — evita el doble rótulo.
+            props: { showHeader: false, showTargetLabel: false, showStopLabel: false, showLossSize: false, showPrices: false },
         });
         drawingId = drawing?.id ?? null;
         lastSeen = `${entryPx}|${entryPx - side * DEFAULT_SL_PTS}|${entryPx + side * DEFAULT_TP_PTS}`;
+        publishDraft(entryPx, DEFAULT_SL_PTS, DEFAULT_TP_PTS);
         resumePoll();
     }
 
-    function cancel(): void {
+    function cancelNew(): void {
         removeDrawing();
         ctx.togglePanel(ORDER_PANEL_ID, false);
     }
 
-    function confirm(): void {
+    function confirmNew(): void {
         const q = Math.max(1, Math.trunc(qtyIn.value) || 1);
-        const slV = slOn.checked ? slVal.value : null;
-        const tpV = tpOn.checked ? tpVal.value : null;
-        if (slOn.checked && !(Number.isFinite(slV) && slV! > 0)) return void ctx.toast('Ingresá un valor de Stop Loss en puntos.', 'error');
-        if (tpOn.checked && !(Number.isFinite(tpV) && tpV! > 0)) return void ctx.toast('Ingresá un valor de Take Profit en puntos.', 'error');
+        const slV = slOn.checked ? slField.getPoints() : null;
+        const tpV = tpOn.checked ? tpField.getPoints() : null;
+        if (slOn.checked && !(Number.isFinite(slV) && slV! > 0)) return void ctx.toast('Ingresá un valor de Stop Loss.', 'error');
+        if (tpOn.checked && !(Number.isFinite(tpV) && tpV! > 0)) return void ctx.toast('Ingresá un valor de Take Profit.', 'error');
         let ok: boolean;
         if (type === 'market') ok = sim.openPosition(dirSide, q, slV, tpV);
         else {
@@ -209,12 +271,34 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
         }
     }
 
+    function startAdjust(field: 'sl' | 'tp', newPrice: number): void {
+        pendingAdjust = { field, price: newPrice };
+        showAdjust();
+        const label = field === 'sl' ? 'Stop Loss' : 'Take Profit';
+        adjustMsg.textContent = `¿Estás seguro de que querés mover el ${label} a ${newPrice.toFixed(2)}?`;
+    }
+    function cancelAdjust(): void {
+        pendingAdjust = null;
+        ctx.togglePanel(ORDER_PANEL_ID, false);
+    }
+    function confirmAdjust(): void {
+        if (!pendingAdjust) return;
+        sim.updatePositionLevels(pendingAdjust.field === 'sl' ? { sl: pendingAdjust.price } : { tp: pendingAdjust.price });
+        pendingAdjust = null;
+        ctx.togglePanel(ORDER_PANEL_ID, false);
+    }
+
+    function apply(req: PendingRequest): void {
+        if (req.kind === 'new') startNewOrder(req.side, req.qty);
+        else startAdjust(req.field, req.price);
+    }
+
+    if (!currentPendingRequest()) showEmpty();
+
     return {
-        startOrder,
+        apply,
         resumePoll,
-        dispose: () => {
-            cancelAnimationFrame(raf);
-        },
+        dispose: () => cancelAnimationFrame(raf),
     };
 }
 
@@ -242,10 +326,10 @@ registerSidePanel({
         return {
             onOpen: () => {
                 api ??= buildOrderPanel(ctx, sim, wrap);
-                const p = currentPendingOrder();
+                const p = currentPendingRequest();
                 if (p && p.nonce !== appliedNonce) {
                     appliedNonce = p.nonce;
-                    api.startOrder(p.side, p.qty);
+                    api.apply(p);
                 } else {
                     api.resumePoll();
                 }

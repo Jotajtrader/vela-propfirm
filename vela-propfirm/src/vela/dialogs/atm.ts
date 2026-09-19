@@ -4,6 +4,7 @@ import { Dialog, NumberInput, TextField } from '@luxalgo/vela/ui';
 import type { Simulator } from '../../engine/Simulator';
 import type { AtmPreset, OrderType } from '../../engine/types';
 import { armedButton, btn, ensureStyles, h, labeled } from '../ui';
+import { pointsUsdField } from '../fields';
 
 export function openAtmDialog(ctx: WidgetContext, sim: Simulator, tplId: string): void {
     ensureStyles(ctx.host.ownerDocument);
@@ -31,10 +32,14 @@ export function openAtmDialog(ctx: WidgetContext, sim: Simulator, tplId: string)
     const price = new NumberInput({ value: 0, step: 0.25, size: 'md', fill: true, commit: 'blur', steppers: false });
     const priceRow = labeled('Precio de entrada', price.el);
     priceRow.hidden = true;
-    const sl = new NumberInput({ value: 0, min: 0, step: 1, size: 'md', fill: true, commit: 'blur', steppers: false, placeholder: 'vacío = off', emptyValue: 0 });
-    const tp = new NumberInput({ value: 0, min: 0, step: 1, size: 'md', fill: true, commit: 'blur', steppers: false, placeholder: 'vacío = off', emptyValue: 0 });
+    const sl = pointsUsdField({ points: 0, qty: () => qty.value, pointValue: () => sim.pointValue(), onChange: () => undefined, size: 'md' });
+    const tp = pointsUsdField({ points: 0, qty: () => qty.value, pointValue: () => sim.pointValue(), onChange: () => undefined, size: 'md' });
     const grid = h('div', 'grid2');
-    grid.append(labeled('Stop Loss (pts, 0 = off)', sl.el), labeled('Take Profit (pts, 0 = off)', tp.el));
+    grid.append(labeled('Stop Loss (0 = off)', sl.el), labeled('Take Profit (0 = off)', tp.el));
+    qty.input.addEventListener('input', () => {
+        sl.refreshConversion();
+        tp.refreshConversion();
+    });
 
     function setType(t: OrderType): void {
         formType = t;
@@ -48,8 +53,8 @@ export function openAtmDialog(ctx: WidgetContext, sim: Simulator, tplId: string)
         name.setValue(p ? p.name : '');
         qty.setValue(p && p.qty != null ? p.qty : 1);
         price.setValue(p && p.price != null ? p.price : 0);
-        sl.setValue(p && p.sl != null ? p.sl : 0);
-        tp.setValue(p && p.tp != null ? p.tp : 0);
+        sl.setPoints(p && p.sl != null ? p.sl : 0);
+        tp.setPoints(p && p.tp != null ? p.tp : 0);
     }
 
     function renderList(): void {
@@ -93,8 +98,8 @@ export function openAtmDialog(ctx: WidgetContext, sim: Simulator, tplId: string)
                 name: nm,
                 type: formType,
                 qty: Math.max(1, Math.trunc(qty.value) || 1),
-                sl: sl.value > 0 ? sl.value : null,
-                tp: tp.value > 0 ? tp.value : null,
+                sl: sl.getPoints() > 0 ? sl.getPoints() : null,
+                tp: tp.getPoints() > 0 ? tp.getPoints() : null,
                 price: formType !== 'market' ? priceV : null,
             });
             renderList();

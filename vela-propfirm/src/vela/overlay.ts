@@ -10,12 +10,23 @@ import {
     type RendererLayerArgs,
     type RendererLayerInstance,
 } from '@luxalgo/vela/plugin';
-import type { Side, SimState } from '../engine/types';
+import type { OrderType, Side, SimState } from '../engine/types';
 import { rulesFor, thresholdOf, tplOf } from '../engine/rules';
 import { activeAcct, pv } from '../engine/trading';
 import { money } from '../engine/format';
 
 export const OVERLAY_ID = 'propfirm.overlay';
+
+/** Niveles de una orden que TODAVÍA no se confirmó (panel-order.ts) — mismo estilo visual que una
+ *  posición abierta (línea punteada + etiqueta con nombre apuntando al precio en el eje), para que
+ *  el usuario vea exactamente qué va a ejecutar antes de tocar "Confirmar". */
+export interface DraftLevels {
+    side: Side;
+    entry: number;
+    sl: number | null;
+    tp: number | null;
+    type: OrderType;
+}
 
 export interface OverlayPayload {
     accountName: string | null;
@@ -26,12 +37,13 @@ export interface OverlayPayload {
     /** Precio al que la posición abierta toca el límite diario (null sin DLL o sin posición). */
     dailyPrice: number | null;
     trades: { side: Side; entryTime: number; exitTime: number; entry: number; exit: number; pnl: number }[];
+    draft: DraftLevels | null;
 }
 
 /** Proyecta el estado del simulador a lo que la capa pinta — solo la cuenta seleccionada. */
 export function buildOverlay(state: SimState): OverlayPayload {
     const acc = activeAcct(state);
-    if (!acc) return { accountName: null, position: null, orders: [], ddPrice: null, dailyPrice: null, trades: [] };
+    if (!acc) return { accountName: null, position: null, orders: [], ddPrice: null, dailyPrice: null, trades: [], draft: null };
     const cur = state.bars[state.idx];
     const px = cur ? cur.c : 0;
     const p = acc.position;
@@ -69,12 +81,21 @@ export function buildOverlay(state: SimState): OverlayPayload {
         trades: acc.tradeLog
             .filter((t) => t.entryTime && t.exitTime)
             .map((t) => ({ side: t.side, entryTime: Date.parse(t.entryTime!), exitTime: Date.parse(t.exitTime!), entry: t.entry, exit: t.exit, pnl: t.pnl })),
+        draft: null,
     };
 }
 
 // ── indicador nativo (dueño de la capa; sin leyenda: el on/off vive en el panel del host) ──
-let current: OverlayPayload | null = null;
+// El draft (orden sin confirmar) vive aparte de la posición/cuenta: lo controla panel-order.ts,
+// independiente de cada `sim.on('change')`, así que se combina recién al empujar a la capa.
+let currentBase: OverlayPayload | null = null;
+let currentDraft: DraftLevels | null = null;
 const live = new Set<OverlayIndicator>();
+
+function combined(): OverlayPayload | null {
+    if (!currentBase) return currentDraft ? { accountName: null, position: null, orders: [], ddPrice: null, dailyPrice: null, trades: [], draft: currentDraft } : null;
+    return currentBase.draft === currentDraft ? currentBase : { ...currentBase, draft: currentDraft };
+}
 
 class OverlayIndicator implements NativeIndicator {
     private ctx: NativeIndicatorContext | null = null;
@@ -82,10 +103,10 @@ class OverlayIndicator implements NativeIndicator {
         this.ctx = ctx;
         live.add(this);
         ctx.emit({}); // monta el modelo vacío: la capa pinta por fuera del modelo
-        ctx.pushData(current);
+        ctx.pushData(combined());
     }
     push(): void {
-        this.ctx?.pushData(current);
+        this.ctx?.pushData(combined());
     }
     onBars(): void {
         this.push();
@@ -102,14 +123,25 @@ class OverlayIndicator implements NativeIndicator {
     }
 }
 
-/** Publica un payload nuevo a todos los charts que tengan el overlay montado. */
-export function pushOverlay(payload: OverlayPayload | null): void {
-    current = payload;
+function notifyAll(): void {
     for (const i of live) i.push();
 }
 
+/** Publica un payload nuevo a todos los charts que tengan el overlay montado. */
+export function pushOverlay(payload: OverlayPayload | null): void {
+    currentBase = payload;
+    notifyAll();
+}
+
 export function currentOverlay(): OverlayPayload | null {
-    return current;
+    return combined();
+}
+
+/** Publica (o reemplaza) los niveles de una orden sin confirmar — panel-order.ts la llama en cada
+ *  cambio (tipeo, drag). `null` la quita (cancelar/confirmar/nueva orden). */
+export function pushDraftOverlay(draft: DraftLevels | null): void {
+    currentDraft = draft;
+    notifyAll();
 }
 
 registerNativeIndicator({
@@ -227,8 +259,8 @@ class OverlayLayer implements RendererLayerInstance {
             const color = p.side > 0 ? theme.upColor : theme.downColor;
             const upnl = `${p.upnl >= 0 ? '+' : ''}${money(p.upnl)}`;
             hline(p.entry, color, [6, 3], `${p.side > 0 ? 'LONG' : 'SHORT'} ${p.qty} @ ${p.entry.toFixed(2)} · ${upnl}`, 'left');
-            if (p.sl != null) hline(p.sl, theme.downColor, [2, 2], 'SL', 'right');
-            if (p.tp != null) hline(p.tp, theme.upColor, [2, 2], 'TP', 'right');
+            if (p.sl != null) hline(p.sl, theme.downColor, [2, 2], 'Stop Loss', 'right');
+            if (p.tp != null) hline(p.tp, theme.upColor, [2, 2], 'Take Profit', 'right');
             if (data.ddPrice != null) hline(data.ddPrice, DANGER, [1, 4], 'DD máx (quema)', 'right');
             if (data.dailyPrice != null) hline(data.dailyPrice, AMBER, [1, 4], 'Límite diario (pausa)', 'right');
             // marcador de la entrada en curso
@@ -238,6 +270,16 @@ class OverlayLayer implements RendererLayerInstance {
             ctx.beginPath();
             ctx.arc(ex, ey, 4, 0, Math.PI * 2);
             ctx.fill();
+        }
+
+        // orden sin confirmar (panel-order.ts): mismo estilo, mientras se arma/arrastra el cuadro
+        const d = data.draft;
+        if (d) {
+            const color = d.side > 0 ? theme.upColor : theme.downColor;
+            const entryLabel = d.type === 'market' ? `${d.side > 0 ? 'Comprar' : 'Vender'} (mercado) @ ${d.entry.toFixed(2)}` : `Entrada ${d.side > 0 ? 'Comprar' : 'Vender'} @ ${d.entry.toFixed(2)}`;
+            hline(d.entry, color, [6, 3], entryLabel, 'left');
+            if (d.sl != null) hline(d.sl, theme.downColor, [2, 2], 'Stop Loss', 'right');
+            if (d.tp != null) hline(d.tp, theme.upColor, [2, 2], 'Take Profit', 'right');
         }
         ctx.restore();
     }
