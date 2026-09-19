@@ -197,7 +197,32 @@ class OverlayLayer implements RendererLayerInstance {
         ctx.font = font;
         ctx.lineWidth = 1;
 
-        const hline = (price: number, color: string, dash: number[], label: string, side: 'left' | 'right'): void => {
+        // Pastilla ↕ pegada a la etiqueta de precio: la señal de "esto se puede clickear y
+        // arrastrar" que pidió el usuario, en el mismo punto donde ya mira el precio.
+        const dragIcon = (cx: number, cy: number, color: string): void => {
+            ctx.beginPath();
+            ctx.arc(cx, cy, 6.5, 0, Math.PI * 2);
+            ctx.fillStyle = theme.background;
+            ctx.fill();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.1;
+            ctx.stroke();
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - 4.2);
+            ctx.lineTo(cx - 2.4, cy - 1.1);
+            ctx.lineTo(cx + 2.4, cy - 1.1);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(cx, cy + 4.2);
+            ctx.lineTo(cx - 2.4, cy + 1.1);
+            ctx.lineTo(cx + 2.4, cy + 1.1);
+            ctx.closePath();
+            ctx.fill();
+        };
+
+        const hline = (price: number, color: string, dash: number[], label: string, side: 'left' | 'right', draggable = false): void => {
             const yy = Math.round(y(price)) + 0.5;
             if (yy < bounds.top - 8 || yy > bounds.top + bounds.height + 8) return;
             ctx.strokeStyle = color;
@@ -208,13 +233,16 @@ class OverlayLayer implements RendererLayerInstance {
             ctx.stroke();
             ctx.setLineDash([]);
             const tw = ctx.measureText(label).width;
-            const lx = side === 'left' ? 8 : W - tw - 8;
+            const iconW = draggable ? 15 : 0;
+            const boxW = tw + 8 + iconW;
+            const lx = side === 'left' ? 8 : W - boxW - 8;
             ctx.globalAlpha = MUTED_ALPHA;
             ctx.fillStyle = theme.background;
-            ctx.fillRect(lx - 4, yy - 14, tw + 8, 14);
+            ctx.fillRect(lx - 4, yy - 14, boxW, 14);
             ctx.globalAlpha = 1;
             ctx.fillStyle = color;
-            ctx.fillText(label, lx, yy - 3);
+            ctx.fillText(label, lx + iconW, yy - 3);
+            if (draggable) dragIcon(lx + 5.5, yy - 7, color);
         };
 
         // trades cerrados: entrada ▲/▼, salida ■, unidos por una línea fina coloreada por el resultado
@@ -259,8 +287,8 @@ class OverlayLayer implements RendererLayerInstance {
             const color = p.side > 0 ? theme.upColor : theme.downColor;
             const upnl = `${p.upnl >= 0 ? '+' : ''}${money(p.upnl)}`;
             hline(p.entry, color, [6, 3], `${p.side > 0 ? 'LONG' : 'SHORT'} ${p.qty} @ ${p.entry.toFixed(2)} · ${upnl}`, 'left');
-            if (p.sl != null) hline(p.sl, theme.downColor, [2, 2], 'Stop Loss', 'right');
-            if (p.tp != null) hline(p.tp, theme.upColor, [2, 2], 'Take Profit', 'right');
+            if (p.sl != null) hline(p.sl, theme.downColor, [2, 2], 'Stop Loss', 'right', true);
+            if (p.tp != null) hline(p.tp, theme.upColor, [2, 2], 'Take Profit', 'right', true);
             if (data.ddPrice != null) hline(data.ddPrice, DANGER, [1, 4], 'DD máx (quema)', 'right');
             if (data.dailyPrice != null) hline(data.dailyPrice, AMBER, [1, 4], 'Límite diario (pausa)', 'right');
             // marcador de la entrada en curso
@@ -277,9 +305,9 @@ class OverlayLayer implements RendererLayerInstance {
         if (d) {
             const color = d.side > 0 ? theme.upColor : theme.downColor;
             const entryLabel = d.type === 'market' ? `${d.side > 0 ? 'Comprar' : 'Vender'} (mercado) @ ${d.entry.toFixed(2)}` : `Entrada ${d.side > 0 ? 'Comprar' : 'Vender'} @ ${d.entry.toFixed(2)}`;
-            hline(d.entry, color, [6, 3], entryLabel, 'left');
-            if (d.sl != null) hline(d.sl, theme.downColor, [2, 2], 'Stop Loss', 'right');
-            if (d.tp != null) hline(d.tp, theme.upColor, [2, 2], 'Take Profit', 'right');
+            hline(d.entry, color, [6, 3], entryLabel, 'left', d.type !== 'market');
+            if (d.sl != null) hline(d.sl, theme.downColor, [2, 2], 'Stop Loss', 'right', true);
+            if (d.tp != null) hline(d.tp, theme.upColor, [2, 2], 'Take Profit', 'right', true);
         }
         ctx.restore();
     }

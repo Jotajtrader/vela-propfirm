@@ -5,10 +5,13 @@ import { injectStyles } from '@luxalgo/vela/ui';
 export const STYLE_ID = 'propfirm-ui';
 export const CSS = `
 /* ── tokens, inspirados en la estética de luxalgo.com (fondo casi negro en capas, teal de marca
-   #0f9c85, verde/rojo alineados a TradingView, bordes en blanco-alpha muy tenues, radios 4-8px) —
-   escapados a .pf para no tocar el resto del shell de Vela. Con contraparte clara si el usuario
-   pasa el chart a theme:'light'. */
-.pf{
+   #0f9c85, verde/rojo alineados a TradingView, bordes en blanco-alpha muy tenues, radios 4-8px).
+   Van en :root (no en .pf): el chrome nativo de los Dialog de Vela (header, borde, footer) vive
+   FUERA del div .pf que envolvemos como body — si los tokens quedaban escapados a .pf, ese chrome
+   y los botones del footer no los heredaban y quedaban con el estilo default de Vela, generando el
+   efecto "cortado y pegado" contra el body ya restyleado. Con contraparte clara si el usuario pasa
+   el chart a theme:'light'. */
+:root{
   --lux-accent:#0f9c85; --lux-accent-fg:#ffffff;
   --lux-bg:#0a0a0a; --lux-bg-2:#141414; --lux-bg-3:#1c1c1c;
   --lux-border:rgba(255,255,255,.08); --lux-border-strong:rgba(255,255,255,.16);
@@ -16,7 +19,7 @@ export const CSS = `
   --lux-up:#089981; --lux-down:#f23645; --lux-warn:#ffa02f;
   --lux-radius-sm:4px; --lux-radius-md:6px; --lux-radius-lg:8px;
 }
-:root[data-theme=light] .pf{
+:root[data-theme=light]{
   --lux-accent:#0f9c85; --lux-accent-fg:#ffffff;
   --lux-bg:#fafafa; --lux-bg-2:#f0f0f0; --lux-bg-3:#e6e6e6;
   --lux-border:rgba(0,0,0,.08); --lux-border-strong:rgba(0,0,0,.18);
@@ -84,9 +87,18 @@ export const CSS = `
    fondo puesto en <option>/<optgroup>, así que se fija explícito para que no aparezca blanco. */
 select.pf-native option,select.pf-native optgroup{background-color:var(--lux-bg-2);color:var(--lux-fg)}
 :root[data-theme=light] .pf-native,:root[data-theme=light] select.pf-native option,:root[data-theme=light] select.pf-native optgroup{color-scheme:light}
-.pf-dialog{width:min(92vw,var(--pf-w,380px))}
-.pf-dialog .body{display:flex;flex-direction:column;gap:10px}
-.pf-foot{display:flex;justify-content:flex-end;gap:8px}
+/* el panel del Dialog (header + borde + fondo) es chrome propio de Vela (.vela-dialog, sobre sus
+   propios tokens --vela-*): se sobreescribe acá — con el selector compuesto para ganarle a
+   .vela-dialog sin depender del orden de las hojas — para que combine con el body .pf de adentro
+   en vez de quedar con el tema default de Vela. */
+.vela-dialog.pf-dialog{width:min(92vw,var(--pf-w,380px));background:var(--lux-bg);border:1px solid var(--lux-border);border-radius:var(--lux-radius-lg);color:var(--lux-fg)}
+.vela-dialog.pf-dialog .vela-dialog-header{border-bottom:1px solid var(--lux-border)}
+.vela-dialog.pf-dialog .vela-dialog-title{color:var(--lux-fg)}
+.vela-dialog.pf-dialog .vela-dialog-close{color:var(--lux-fg-muted)}
+.vela-dialog.pf-dialog .vela-dialog-close:hover{background:var(--lux-bg-3);color:var(--lux-fg)}
+.vela-dialog.pf-dialog .vela-dialog-body{padding:0}
+.pf-dialog .body{display:flex;flex-direction:column;gap:10px;padding:var(--vela-space-4,16px)}
+.pf-foot{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--lux-border);padding:10px var(--vela-space-4,16px)}
 .pf-phase{border:1px solid var(--lux-border);border-radius:var(--lux-radius-lg);padding:10px;background:var(--lux-bg-2);display:flex;flex-direction:column;gap:6px}
 .pf-sep{border-top:1px solid var(--lux-border);padding-top:8px;margin-top:2px}
 .pf-title{font-size:10px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--lux-accent)}

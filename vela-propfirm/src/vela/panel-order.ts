@@ -112,6 +112,10 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
         for (const k of Object.keys(segBtns) as OrderType[]) segBtns[k].classList.toggle('on', k === t);
         priceRow.hidden = t === 'market';
         marketHint.hidden = t !== 'market';
+        // El tipo no mueve ningún anchor (mismo precio), así que sin esto la etiqueta y el ícono de
+        // arrastre de la entrada quedaban con el rótulo/estado del tipo anterior hasta el próximo
+        // drag o cambio de precio.
+        if (drawingId) publishDraft(price.value, slField.getPoints(), tpField.getPoints());
     }
 
     function currentAnchors(): SerializedDrawing['anchors'] | null {
@@ -185,12 +189,30 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
         pushDraftOverlay(null);
     }
 
+    // Vela no avisa cuándo se cierra el panel (ni por la X nativa ni al abrir otro panel) — no hay
+    // onClose en SidePanelHandle. Se detecta acá, sondeando junto con el resto: si se oculta con
+    // una orden nueva sin confirmar o un ajuste sin responder, se trata como Cancelar/No en vez de
+    // dejar el dibujo huérfano en el chart (antes solo pasaba al tocar nuestro botón Cancelar).
+    function abandon(): void {
+        if (drawingId) {
+            removeDrawing();
+            showEmpty();
+        } else if (pendingAdjust) {
+            pendingAdjust = null;
+            showEmpty();
+        }
+    }
     function tick(): void {
-        syncFromDrawing();
-        raf = body.offsetParent !== null ? requestAnimationFrame(tick) : 0;
+        if (drawingId) syncFromDrawing();
+        if (body.offsetParent !== null) {
+            raf = requestAnimationFrame(tick);
+        } else {
+            raf = 0;
+            abandon();
+        }
     }
     function resumePoll(): void {
-        if (!raf && drawingId) raf = requestAnimationFrame(tick);
+        if (!raf && (drawingId || pendingAdjust)) raf = requestAnimationFrame(tick);
     }
 
     function showForm(): void {
@@ -276,6 +298,7 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
         showAdjust();
         const label = field === 'sl' ? 'Stop Loss' : 'Take Profit';
         adjustMsg.textContent = `¿Estás seguro de que querés mover el ${label} a ${newPrice.toFixed(2)}?`;
+        resumePoll();
     }
     function cancelAdjust(): void {
         pendingAdjust = null;
@@ -298,7 +321,14 @@ function buildOrderPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement):
     return {
         apply,
         resumePoll,
-        dispose: () => cancelAnimationFrame(raf),
+        // Al cerrar por la X nativa, Vela desmonta el panel (destroy) YA — no llega a haber un
+        // próximo frame donde tick() note body.offsetParent===null, así que abandon() se llama acá
+        // también (además de en tick(), por si el cierre alguna vez no pasa por destroy).
+        dispose: () => {
+            cancelAnimationFrame(raf);
+            raf = 0;
+            abandon();
+        },
     };
 }
 
