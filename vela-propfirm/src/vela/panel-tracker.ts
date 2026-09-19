@@ -1,26 +1,28 @@
-// El "Tracker" del HTML: cuentas de la corrida a la izquierda; a la derecha el registro cronológico
-// de la cuenta elegida (operaciones + hitos) o el equity del negocio con su drawdown y las tasas.
-// En los modos challenge/colchón muestra un solo porcentaje. Es un side panel overlay ancho: el
-// chart sigue vivo detrás y el dock exclusivo hace de "pestaña" frente al panel Backtest.
+// El "Tracker": Panel de control (comprar + monitorear cada cuenta — primera pestaña, funciona en
+// cualquier modo), Registro (log cronológico de una cuenta elegida), Equity (curva del negocio con
+// fechas reales + drawdown + tasas) y Configuración (datos/instrumento/comisión/corte de jornada).
+// En los modos challenge/colchón, Registro y Equity se reemplazan por un solo porcentaje. Side
+// panel overlay ancho: el chart sigue vivo detrás y el dock exclusivo hace de "pestaña" frente al
+// panel Backtest.
 import { registerIcon, registerSidePanel, registerWidgetAction, type WidgetContext } from '@luxalgo/vela/plugin';
-import { injectStyles, svg16 } from '@luxalgo/vela/ui';
+import { NumberInput, Select, injectStyles, svg16 } from '@luxalgo/vela/ui';
 import type { Simulator } from '../engine/Simulator';
 import type { Account, AccountCategory, Milestone, TradeLogEntry } from '../engine/types';
+import { PV, parseCSV } from '../engine/data';
 import { money } from '../engine/format';
-import { acctCategory, tplOf } from '../engine/rules';
-import { computeTrackerStats, ledgerDrawdownSeries, ledgerEquitySeries, statusBadge, trackerSimpleStats } from '../engine/tracker';
+import { acctCategory, isPayoutEligible, rulesFor, targetBalOf, thresholdOf, tplOf, isPhase } from '../engine/rules';
+import { computeTrackerStats, ledgerDrawdownPoints, ledgerEquityPoints, statusBadge, trackerSimpleStats, type LedgerPoint } from '../engine/tracker';
 import { getSimulator } from './context';
-import { btn, cssVar, ensureStyles, h, hint } from './ui';
+import { btn, cssVar, ensureStyles, fmtHM, h, hint, labeled, nativeInput, parseHM } from './ui';
+import { openBuyDialog } from './dialogs/buy';
 
 export const TRACKER_ID = 'propfirm.tracker';
 
 const CSS = `
-.pf-trk{display:flex;align-items:stretch;min-height:100%}
-.pf-trk .left{flex:0 0 270px;max-width:270px;border-right:1px solid var(--vela-border-soft);padding:10px;position:sticky;top:0;align-self:flex-start;max-height:calc(100vh - 140px);overflow-y:auto}
-.pf-trk .left .pf-tabs{flex-wrap:wrap} .pf-trk .left .pf-tabs .pf-btn{flex:1 1 45%}
-.pf-trk .right{flex:1;min-width:0;display:flex;flex-direction:column}
+.pf-trk{display:flex;flex-direction:column;min-height:100%}
 .pf-trk .subtabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--vela-border-soft)}
-.pf-trk .pane{padding:14px;position:relative}
+.pf-trk .pane{padding:14px}
+.pf-trk .pane.narrow{max-width:640px}
 .pf-table{width:100%;border-collapse:collapse;font-size:11px}
 .pf-table th{text-align:left;color:var(--vela-fg-muted);font-weight:normal;padding:6px 8px;border-bottom:1px solid var(--vela-border-soft);position:sticky;top:0;background:var(--vela-surface,var(--vela-bg))}
 .pf-table td{padding:5px 8px;border-bottom:1px solid var(--vela-border-soft);font-variant-numeric:tabular-nums}
@@ -36,6 +38,9 @@ const CSS = `
 .pf-tip .r{display:flex;justify-content:space-between;gap:14px} .pf-tip .k{color:var(--vela-fg-muted)}
 .pf-simple{text-align:center;padding:40px 20px}
 .pf-simple .big{font-size:56px;font-weight:700;margin:14px 0}
+.pf-trk .canvaswrap{position:relative}
+.pf-control-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.pf-log-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 `;
 
 registerIcon('propfirm.tracker', svg16('<path d="M3 3.5h10M3 8h10M3 12.5h6"/><circle cx="12.5" cy="12.5" r="1.2"/>'));
@@ -56,6 +61,9 @@ const CATS: { cat: AccountCategory; label: string }[] = [
     { cat: 'paid', label: 'Cobradas' },
     { cat: 'blown', label: 'Quemadas' },
 ];
+const INSTRUMENTS = Object.keys(PV).map((k) => ({ value: k, label: `${k} ($${PV[k]}/pt)` }));
+
+type SubTab = 'control' | 'log' | 'equity' | 'config';
 
 const fmtT = (iso: string | null): string => (iso ? `${iso.slice(0, 10)} ${iso.slice(11, 16)}` : '—');
 
@@ -79,20 +87,60 @@ function fitCanvas(cv: HTMLCanvasElement): { g: CanvasRenderingContext2D; w: num
     return { g, w: r.width, h: r.height };
 }
 
+/** `HH:mm` si el rango cabe en un día, si no `DD/MM`. */
+function fmtAxisDate(ms: number, spanMs: number): string {
+    const d = new Date(ms);
+    if (spanMs <= 86_400_000) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function nearestPointIndex(pts: readonly LedgerPoint[], t: number): number {
+    let best = 0;
+    let bestDiff = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+        const diff = Math.abs(pts[i]!.time - t);
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            best = i;
+        }
+    }
+    return best;
+}
+
 function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): () => void {
     const doc = body.ownerDocument;
     ensureStyles(doc);
     injectStyles('propfirm-tracker', CSS, doc);
     const st = sim.state;
+    let subTab: SubTab = 'control';
     let catFilter: AccountCategory = 'challenge';
-    let subTab: 'log' | 'equity' = 'log';
-    let selAcct: string | null = null;
+    let logSelAcct: string | null = null;
 
     const root = h('div', 'pf pf-trk');
-    // ── izquierda: cuentas de la corrida ──
-    const left = h('div', 'left');
-    left.appendChild(h('h3', undefined, 'Cuentas de la corrida'));
-    (left.firstChild as HTMLElement).style.cssText = 'margin:0 0 8px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--vela-fg-muted)';
+    const subtabs = h('div', 'subtabs');
+    const tabControl = btn('🎛 Panel de control', () => {
+        subTab = 'control';
+        paint();
+    });
+    const tabLog = btn('📋 Registro', () => {
+        subTab = 'log';
+        paint();
+    });
+    const tabEq = btn('📉 Equity', () => {
+        subTab = 'equity';
+        paint();
+    });
+    const tabConfig = btn('⚙ Configuración', () => {
+        subTab = 'config';
+        paint();
+    });
+    subtabs.append(tabControl, tabLog, tabEq, tabConfig);
+
+    // ── Panel de control ──────────────────────────────────────────────────────────────
+    const paneControl = h('div', 'pane');
+    const ctrlHead = h('div', 'pf-control-head');
+    ctrlHead.append(h('h3', undefined, 'Cuentas de la corrida'), btn('+ Comprar cuentas', () => openBuyDialog(ctx, sim), 'on'));
+    (ctrlHead.firstChild as HTMLElement).style.cssText = 'margin:0;font-size:13px';
     const catTabs = h('div', 'pf-tabs');
     const catBtns = CATS.map((c) => {
         const b = btn('', () => {
@@ -103,67 +151,226 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
         return b;
     });
     catTabs.append(...catBtns);
-    const list = h('div', 'pf-list');
-    list.style.maxHeight = 'none';
-    list.style.marginTop = '8px';
-    left.append(catTabs, list);
+    const ctrlList = h('div', 'pf-list');
+    ctrlList.style.maxHeight = 'none';
+    ctrlList.style.marginTop = '10px';
+    paneControl.append(ctrlHead, catTabs, ctrlList);
 
-    // ── derecha ──
-    const right = h('div', 'right');
-    const subtabs = h('div', 'subtabs');
-    const tabLog = btn('📋 Registro', () => {
-        subTab = 'log';
-        paint();
-    });
-    const tabEq = btn('📉 Equity', () => {
-        subTab = 'equity';
-        paint();
-    });
-    subtabs.append(tabLog, tabEq);
+    // ── Registro ──────────────────────────────────────────────────────────────────────
     const paneLog = h('div', 'pane');
+    const logHead = h('div', 'pf-log-head');
+    const logSelectLabel = h('span', 'lbl', 'Cuenta');
+    let logSelectEl: HTMLElement = h('div'); // placeholder — reemplazado en el primer paintLogSelect()
+    let logSelectCtrl: Select | null = null;
+    logHead.append(logSelectLabel, logSelectEl);
+    const logBody = h('div');
+    paneLog.append(logHead, logBody);
+
+    // ── Equity ────────────────────────────────────────────────────────────────────────
     const paneEq = h('div', 'pane');
+    const eqWrap = h('div', 'canvaswrap');
     const eqCv = h('canvas', 'pf-eq');
     const tip = h('div', 'pf-tip');
     tip.hidden = true;
+    eqWrap.append(eqCv, tip);
     const ddTitle = h('div', 'mini', 'DRAWDOWN (profundidad bajo el pico previo)');
     ddTitle.style.margin = '10px 0 4px';
     const ddCv = h('canvas', 'pf-dd');
     const statsBox = h('div');
-    paneEq.append(eqCv, tip, ddTitle, ddCv, statsBox);
+    paneEq.append(eqWrap, ddTitle, ddCv, statsBox);
+
     const paneSimple = h('div', 'pane');
-    right.append(subtabs, paneLog, paneEq, paneSimple);
-    root.append(left, right);
+
+    // ── Configuración ─────────────────────────────────────────────────────────────────
+    const paneConfig = h('div', 'pane narrow');
+    const sData = h('div');
+    sData.appendChild(h('h3', undefined, 'Datos'));
+    (sData.firstChild as HTMLElement).style.cssText = 'margin:0 0 10px;font-size:13px';
+    const csvFile = nativeInput('file');
+    csvFile.accept = '.csv,.txt';
+    csvFile.hidden = true;
+    csvFile.addEventListener('change', () => {
+        const f = csvFile.files?.[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = () => sim.loadBars(parseCSV(String(r.result), st.tradingDayCutoff));
+        r.readAsText(f);
+        csvFile.value = '';
+    });
+    const sessFile = nativeInput('file');
+    sessFile.accept = '.json';
+    sessFile.hidden = true;
+    sessFile.addEventListener('change', () => {
+        const f = sessFile.files?.[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = () => {
+            try {
+                sim.importSession(JSON.parse(String(r.result)));
+            } catch {
+                ctx.toast('JSON inválido', 'error');
+            }
+        };
+        r.readAsText(f);
+        sessFile.value = '';
+    });
+    const dataRow = h('div', 'row');
+    dataRow.style.flexWrap = 'wrap';
+    dataRow.append(
+        btn('Datos demo', () => import('../engine/data').then((m) => sim.loadBars(m.genSample()))),
+        btn('Cargar CSV', () => csvFile.click()),
+        btn('Exportar sesión', () => {
+            const blob = new Blob([JSON.stringify(sim.exportSession())], { type: 'application/json' });
+            const a = h('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'sesion-fondeo.json';
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        }),
+        btn('Importar', () => sessFile.click()),
+    );
+    const instr = new Select({ options: INSTRUMENTS, value: st.instr, size: 'sm', fill: true, onChange: (v) => sim.setInstrument(v) });
+    const comm = new NumberInput({ value: st.comm, step: 0.1, min: 0, size: 'sm', fill: true, commit: 'blur', steppers: false, onChange: (v) => sim.setCommission(v) });
+    const cutoff = nativeInput('time', fmtHM(st.tradingDayCutoff));
+    cutoff.title = 'Hora real de cierre del mercado — el "día" de trading corta acá, no a medianoche';
+    cutoff.addEventListener('change', () => sim.setTradingDayCutoff(parseHM(cutoff.value) ?? { h: 0, m: 0 }));
+    const cfg = h('div', 'grid3');
+    cfg.style.marginTop = '8px';
+    cfg.append(labeled('Instrumento', instr.el), labeled('Comis/lado', comm.el), labeled('Cierre jornada', cutoff));
+    sData.append(dataRow, csvFile, sessFile, cfg, hint('Formato CSV: datetime,open,high,low,close[,volume] — 1 fila por barra, datetime ISO o YYYY-MM-DD HH:MM. Con el corte de jornada, la sesión nocturna queda del lado del día de trading siguiente.'));
+    paneConfig.appendChild(sData);
+
+    root.append(subtabs, paneControl, paneLog, paneEq, paneSimple, paneConfig);
     body.appendChild(root);
 
-    let eqProj: { X: (i: number) => number; pts: number[]; padL: number; plotW: number; w: number } | null = null;
+    let eqProj: { pts: LedgerPoint[]; X: (t: number) => number; padL: number; plotW: number; w: number } | null = null;
     eqCv.addEventListener('mousemove', (e) => {
-        if (!eqProj) return void (tip.hidden = true);
+        if (!eqProj || eqProj.pts.length < 2) return void (tip.hidden = true);
         const r = eqCv.getBoundingClientRect();
         const mx = e.clientX - r.left;
         const my = e.clientY - r.top;
-        const i = Math.round(((mx - eqProj.padL) / eqProj.plotW) * (eqProj.pts.length - 1));
-        if (i < 1 || i >= eqProj.pts.length || mx < eqProj.padL) return void (tip.hidden = true);
-        const entry = st.ledger[i - 1]!;
+        if (mx < eqProj.padL) return void (tip.hidden = true);
+        const t0 = eqProj.pts[0]!.time;
+        const t1 = eqProj.pts[eqProj.pts.length - 1]!.time;
+        const targetT = t0 + ((mx - eqProj.padL) / eqProj.plotW) * (t1 - t0);
+        const i = nearestPointIndex(eqProj.pts, targetT);
+        if (i < 1) return void (tip.hidden = true);
+        // el punto i-1 (baseline) no tiene entrada de ledger propia; el ledger real empieza en i=1
+        const entry = st.ledger.filter((l) => l.time != null)[i - 1];
+        if (!entry) return void (tip.hidden = true);
         tip.replaceChildren();
         for (const [k, v] of [
+            ['Fecha', new Date(eqProj.pts[i]!.time).toLocaleString()],
             ['Cuenta', entry.acc || '—'],
             ['Tipo', entry.type],
             ['Monto', `${entry.amount >= 0 ? '+' : ''}${money(entry.amount)}`],
-            ['Acumulado', money(eqProj.pts[i]!)],
+            ['Acumulado', money(eqProj.pts[i]!.cum)],
         ]) {
             const row = h('div', 'r');
             row.append(h('span', 'k', k), h('span', undefined, v));
             tip.appendChild(row);
         }
         let leftPx = mx + 14;
-        if (leftPx + 160 > eqProj.w) leftPx = mx - 170;
-        tip.style.left = `${leftPx + eqCv.offsetLeft}px`;
-        tip.style.top = `${my + 14 + eqCv.offsetTop}px`;
+        if (leftPx + 170 > eqProj.w) leftPx = mx - 180;
+        tip.style.left = `${leftPx}px`;
+        tip.style.top = `${my + 14}px`;
         tip.hidden = false;
     });
     eqCv.addEventListener('mouseleave', () => (tip.hidden = true));
 
-    function paintList(): void {
+    function acctCard(list: HTMLElement, acc: Account, onClick: (acc: Account) => void): HTMLElement {
+        const tpl = tplOf(st, acc);
+        const rules = rulesFor(acc, tpl);
+        const notActivated = acc.status === 'funded' && !acc.activated;
+        const thr = rules && !notActivated ? thresholdOf(acc, rules) : null;
+        const ddRoom = thr != null ? acc.balance - thr : null;
+        const ddAmt = rules ? rules.ddAmount : null;
+        const toTgt = acc.status === 'challenge' && rules && isPhase(rules) ? targetBalOf(acc, rules) - acc.balance : null;
+        const pnl = acc.balance - acc.startBalance;
+        const dailyRoom = rules && rules.dailyLoss > 0 && !notActivated ? rules.dailyLoss + acc.dailyPnl : null;
+        const progTgt = acc.status === 'challenge' && rules && isPhase(rules) ? Math.max(0, Math.min(1, (acc.balance - acc.stageStartBalance) / rules.target)) : 1;
+        const progDD = ddRoom != null && ddAmt ? Math.max(0, Math.min(1, ddRoom / ddAmt)) : 0;
+        const eligible = acc.status === 'funded' && acc.activated && tpl ? isPayoutEligible(acc, tpl) : false;
+        const badge = statusBadge(acc);
+
+        let div = list.querySelector<HTMLElement>(`[data-accid="${acc.id}"]`);
+        if (!div) {
+            div = h('div');
+            div.dataset.accid = acc.id;
+            div.addEventListener('click', (e) => {
+                if ((e.target as HTMLElement).closest('button')) return;
+                onClick(acc);
+            });
+        }
+        div.className = `pf-card${acc.id === st.selAcct ? ' sel' : ''}`;
+        div.replaceChildren();
+        const top = h('div', 'top');
+        top.append(h('span', 'nm', acc.name), h('span', `pf-badge ${badge.cls}`, badge.text));
+        div.append(top, h('div', 'mini', tpl ? tpl.name : '(plantilla eliminada)'));
+        const bal = h('div', 'kv');
+        bal.append(h('span', 'mini', 'Balance'), h('span', 'mini', ''));
+        (bal.lastChild as HTMLElement).innerHTML = `<b>${money(acc.balance)}</b> (${pnl >= 0 ? '+' : ''}${money(pnl)})`;
+        div.appendChild(bal);
+        const mini = (k: string, v: string, cls = ''): void => {
+            const r = h('div', 'kv');
+            r.append(h('span', 'mini', k), h('span', `mini${cls ? ' ' + cls : ''}`, v));
+            div!.appendChild(r);
+        };
+        if (!notActivated) mini('PnL de hoy', `${acc.dailyPnl >= 0 ? '+' : ''}${money(acc.dailyPnl)}`, acc.dailyPnl >= 0 ? 'pos' : 'neg');
+        if (notActivated) {
+            const n = h('div', 'mini', '✅ Challenge aprobado — tocá "Fondear" para activar la cuenta y empezar a operar en fondeada');
+            n.style.color = 'var(--vela-up,#26a65b)';
+            div.appendChild(n);
+        }
+        if (ddRoom != null && ddAmt != null) mini('DD room', `${money(ddRoom)} / ${money(ddAmt)}`, ddRoom < ddAmt * 0.25 ? 'neg' : '');
+        if (acc.status === 'challenge' && toTgt != null) mini('A objetivo', money(Math.max(0, toTgt)));
+        if (dailyRoom != null) mini('Daily room', money(dailyRoom), dailyRoom < 0 ? 'neg' : '');
+        if (acc.status === 'funded' && acc.activated && tpl && (tpl.funded.minDays > 0 || tpl.funded.minCycleSum > 0)) {
+            mini('Elegibilidad retiro', `${acc.cycleValidDays}/${tpl.funded.minDays || 0} días de $${tpl.funded.minDayProfit || 0}+ · ${money(acc.cycleProfitSum)}/${money(tpl.funded.minCycleSum || 0)}`, eligible ? 'pos' : 'neg');
+        }
+        if (acc.position) mini('Posición', `${acc.position.side > 0 ? 'LONG' : 'SHORT'} ${acc.position.qty} @ ${acc.position.entry.toFixed(2)}`, acc.position.side > 0 ? 'pos' : 'neg');
+        if (acc.status === 'paused') {
+            const n = h('div', 'mini', 'Pausada por límite diario — se reactiva al saltar de día');
+            n.style.color = '#e0a53f';
+            div.appendChild(n);
+        }
+        const bars = h('div', 'pf-bars');
+        const b1 = h('div', 'pf-bar');
+        b1.title = 'progreso a objetivo';
+        const f1 = h('div', 'fill');
+        f1.style.cssText = `width:${progTgt * 100}%;background:var(--vela-up,#26a65b)`;
+        b1.appendChild(f1);
+        const b2 = h('div', 'pf-bar');
+        b2.title = 'colchón de drawdown';
+        const f2 = h('div', 'fill');
+        f2.style.cssText = `width:${progDD * 100}%;background:#e0a53f`;
+        b2.appendChild(f2);
+        bars.append(b1, b2);
+        div.appendChild(bars);
+        const actions = h('div', 'row');
+        actions.style.marginTop = '6px';
+        if (notActivated) {
+            const b = btn('🚀 Fondear', () => sim.activate(acc), 'on');
+            b.style.flex = '1';
+            actions.appendChild(b);
+        }
+        if (acc.status === 'funded' && acc.activated) {
+            const b = btn('💵 Cobrar', () => sim.collectPayout(acc));
+            b.style.flex = '1';
+            b.disabled = !eligible;
+            actions.appendChild(b);
+        }
+        if ((acc.status === 'blown' || acc.status === 'paid') && tpl) {
+            const b = btn('↻ Recomprar', () => sim.rebuy(acc));
+            b.style.flex = '1';
+            actions.appendChild(b);
+        }
+        if (acc.payouts > 0) actions.appendChild(h('span', 'mini', `cobrado ${money(acc.payouts)}`));
+        if (actions.childElementCount) div.appendChild(actions);
+        return div;
+    }
+
+    function paintControl(): void {
         const counts = { challenge: 0, funded: 0, paid: 0, blown: 0 };
         for (const a of st.accounts) counts[acctCategory(a)]++;
         CATS.forEach((c, i) => {
@@ -171,40 +378,59 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
             (catBtns[i]!.querySelector('.cnt') as HTMLElement).textContent = String(counts[c.cat]);
         });
         const visible = st.accounts.filter((a) => acctCategory(a) === catFilter);
-        if (!visible.length) return void list.replaceChildren(hint('Sin cuentas en esta categoría todavía.'));
-        if (list.firstElementChild && !(list.firstElementChild as HTMLElement).dataset.accid) list.replaceChildren();
+        if (!visible.length) {
+            ctrlList.replaceChildren(hint('Sin cuentas en esta categoría.'));
+            return;
+        }
+        if (ctrlList.firstElementChild && !(ctrlList.firstElementChild as HTMLElement).dataset.accid) ctrlList.replaceChildren();
         const seen = new Set<string>();
         for (const acc of visible) {
             seen.add(acc.id);
-            let div = list.querySelector<HTMLElement>(`[data-accid="${acc.id}"]`);
-            if (!div) {
-                div = h('div');
-                div.dataset.accid = acc.id;
-                div.addEventListener('click', () => {
-                    selAcct = acc.id;
+            ctrlList.appendChild(
+                acctCard(ctrlList, acc, (a) => {
+                    sim.selectAccount(a.id); // esta pasa a ser también la cuenta operativa del panel Backtest
+                    logSelAcct = a.id;
                     paint();
-                });
-            }
-            div.className = `pf-card${acc.id === selAcct ? ' sel' : ''}`;
-            const badge = statusBadge(acc);
-            const top = h('div', 'top');
-            top.append(h('span', 'nm', acc.name), h('span', `pf-badge ${badge.cls}`, badge.text));
-            const tpl = tplOf(st, acc);
-            const bal = h('div', 'kv');
-            bal.append(h('span', 'mini', 'Balance'), h('span', 'mini', money(acc.balance)));
-            div.replaceChildren(top, h('div', 'mini', tpl ? tpl.name : '(plantilla eliminada)'), bal, h('div', 'mini', `${acc.tradeLog.length} operacion${acc.tradeLog.length === 1 ? '' : 'es'}`));
-            list.appendChild(div);
+                }),
+            );
         }
-        for (const el of [...list.children]) if ((el as HTMLElement).dataset.accid && !seen.has((el as HTMLElement).dataset.accid!)) el.remove();
+        for (const el of [...ctrlList.children]) if ((el as HTMLElement).dataset.accid && !seen.has((el as HTMLElement).dataset.accid!)) el.remove();
+    }
+
+    let logSelectOptKey = '';
+    function paintLogSelect(): void {
+        if (logSelAcct == null && st.selAcct) logSelAcct = st.selAcct; // arranca alineado a la cuenta operativa
+        const options = [{ value: '', label: '— elegí una cuenta —' }, ...st.accounts.map((a) => ({ value: a.id, label: `${a.name} — ${statusBadge(a).text}` }))];
+        // El kit no permite reemplazar options in-place: se reconstruye el Select si cambió el set de cuentas.
+        const key = options.map((o) => o.value).join(',');
+        if (key !== logSelectOptKey) {
+            logSelectOptKey = key;
+            const fresh = new Select({
+                options,
+                value: logSelAcct ?? '',
+                size: 'sm',
+                fill: true,
+                onChange: (v) => {
+                    logSelAcct = v || null;
+                    paint();
+                },
+            });
+            logSelectEl.replaceWith(fresh.el);
+            logSelectEl = fresh.el;
+            logSelectCtrl = fresh;
+        } else {
+            logSelectCtrl?.setValue(logSelAcct ?? '');
+        }
     }
 
     function paintLog(): void {
-        const acc = st.accounts.find((a) => a.id === selAcct);
-        if (!acc) return void paneLog.replaceChildren(hint('Seleccioná una cuenta de la izquierda para ver qué ATM se ejecutó, a qué hora y con qué resultado.'));
+        paintLogSelect();
+        const acc = st.accounts.find((a) => a.id === logSelAcct);
+        if (!acc) return void logBody.replaceChildren(hint('Elegí una cuenta arriba para ver qué ATM se ejecutó, a qué hora y con qué resultado.'));
         const title = h('h3', undefined, `${acc.name} — ${acc.tradeLog.length} operacion${acc.tradeLog.length === 1 ? '' : 'es'}`);
         title.style.cssText = 'margin:0 0 10px;font-size:13px';
         const milestones = acc.milestones || [];
-        if (!acc.tradeLog.length && !milestones.length) return void paneLog.replaceChildren(title, hint('Todavía no tiene operaciones ni hitos registrados.'));
+        if (!acc.tradeLog.length && !milestones.length) return void logBody.replaceChildren(title, hint('Todavía no tiene operaciones ni hitos registrados.'));
         type Row = { kind: 'trade'; time: string | null; data: TradeLogEntry } | { kind: 'milestone'; time: string | null; data: Milestone };
         const rows: Row[] = [
             ...acc.tradeLog.map((t): Row => ({ kind: 'trade', time: t.exitTime, data: t })),
@@ -241,7 +467,7 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
             tbody.appendChild(tr);
         }
         table.append(thead, tbody);
-        paneLog.replaceChildren(title, table);
+        logBody.replaceChildren(title, table);
     }
 
     function paintEquity(): void {
@@ -252,24 +478,28 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
         const grid = cssVar(eqCv, '--vela-border-soft', '#2a3340');
         const up = cssVar(eqCv, '--vela-up', '#26a65b');
         const down = cssVar(eqCv, '--vela-down', '#e0524f');
-        const padL = 56;
+        const padL = 64;
         const padR = 16;
         const padT = 16;
-        const padB = 8;
+        const padB = 22;
         const plotW = w - padL - padR;
         const plotH = hgt - padT - padB;
-        const pts = ledgerEquitySeries(st.ledger);
+        const pts = ledgerEquityPoints(st.ledger);
         eqProj = null;
+        g.font = `12px ${font}`;
         if (pts.length < 2) {
             g.fillStyle = muted;
-            g.font = `12px ${font}`;
             g.fillText('Sin movimientos todavía en el negocio', padL, padT + 20);
             return;
         }
-        let mn = Math.min(0, ...pts);
-        let mx = Math.max(0, ...pts);
+        const cums = pts.map((p) => p.cum);
+        let mn = Math.min(0, ...cums);
+        let mx = Math.max(0, ...cums);
         if (mx === mn) mx = mn + 1;
-        const X = (i: number): number => padL + (i / (pts.length - 1)) * plotW;
+        const t0 = pts[0]!.time;
+        const t1 = pts[pts.length - 1]!.time;
+        const spanMs = Math.max(1, t1 - t0);
+        const X = (t: number): number => padL + ((t - t0) / spanMs) * plotW;
         const Y = (v: number): number => padT + plotH - ((v - mn) / (mx - mn)) * plotH;
         g.strokeStyle = grid;
         g.fillStyle = muted;
@@ -284,21 +514,27 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
             g.stroke();
             g.fillText(`$${Math.round(v).toLocaleString('en-US')}`, 4, y + 3);
         }
+        // eje X: fechas reales, ~6 marcas
+        for (let k = 0; k <= 6; k++) {
+            const t = t0 + (spanMs * k) / 6;
+            const x = X(t);
+            g.fillText(fmtAxisDate(t, spanMs), Math.min(x, padL + plotW - 30), padT + plotH + 14);
+        }
         g.strokeStyle = muted;
         g.beginPath();
         g.moveTo(padL, Y(0));
         g.lineTo(padL + plotW, Y(0));
         g.stroke();
-        const last = pts[pts.length - 1]!;
+        const last = cums[cums.length - 1]!;
         g.strokeStyle = last >= 0 ? up : down;
         g.lineWidth = 1.8;
         g.beginPath();
-        pts.forEach((v, i) => (i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v))));
+        pts.forEach((p, i) => (i ? g.lineTo(X(p.time), Y(p.cum)) : g.moveTo(X(p.time), Y(p.cum))));
         g.stroke();
         g.fillStyle = g.strokeStyle;
         g.font = `13px ${font}`;
         g.fillText(`${last >= 0 ? '+' : ''}$${Math.round(last).toLocaleString('en-US')}`, padL + 8, padT + 16);
-        eqProj = { X, pts, padL, plotW, w };
+        eqProj = { pts, X, padL, plotW, w };
     }
 
     function paintDrawdown(): void {
@@ -308,21 +544,25 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
         const muted = cssVar(ddCv, '--vela-fg-muted', '#8892a0');
         const grid = cssVar(ddCv, '--vela-border-soft', '#2a3340');
         const down = cssVar(ddCv, '--vela-down', '#e0524f');
-        const padL = 56;
+        const padL = 64;
         const padR = 16;
         const padT = 8;
         const padB = 8;
         const plotW = w - padL - padR;
         const plotH = hgt - padT - padB;
-        const dd = ledgerDrawdownSeries(st.ledger);
-        if (dd.length < 2) {
+        const pts = ledgerDrawdownPoints(st.ledger);
+        if (pts.length < 2) {
             g.fillStyle = muted;
             g.font = `12px ${font}`;
             g.fillText('Sin movimientos todavía', padL, padT + 20);
             return;
         }
-        const mx = Math.max(1, ...dd);
-        const X = (i: number): number => padL + (i / (dd.length - 1)) * plotW;
+        const dds = pts.map((p) => p.cum);
+        const mx = Math.max(1, ...dds);
+        const t0 = pts[0]!.time;
+        const t1 = pts[pts.length - 1]!.time;
+        const spanMs = Math.max(1, t1 - t0);
+        const X = (t: number): number => padL + ((t - t0) / spanMs) * plotW;
         const Y = (v: number): number => padT + (v / mx) * plotH; // eje invertido: 0 arriba
         g.strokeStyle = grid;
         g.fillStyle = muted;
@@ -339,23 +579,23 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
         }
         g.fillStyle = 'rgba(224,82,79,0.18)';
         g.beginPath();
-        g.moveTo(X(0), Y(0));
-        dd.forEach((v, i) => g.lineTo(X(i), Y(v)));
-        g.lineTo(X(dd.length - 1), Y(0));
+        g.moveTo(X(t0), Y(0));
+        pts.forEach((p) => g.lineTo(X(p.time), Y(p.cum)));
+        g.lineTo(X(t1), Y(0));
         g.closePath();
         g.fill();
         g.strokeStyle = down;
         g.lineWidth = 1.8;
         g.beginPath();
-        dd.forEach((v, i) => (i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v))));
+        pts.forEach((p, i) => (i ? g.lineTo(X(p.time), Y(p.cum)) : g.moveTo(X(p.time), Y(p.cum))));
         g.stroke();
-        const maxDD = Math.max(...dd);
-        const maxIdx = dd.indexOf(maxDD);
+        const maxDD = Math.max(...dds);
+        const maxIdx = dds.indexOf(maxDD);
         g.fillStyle = down;
         g.font = `13px ${font}`;
         g.fillText(`máx: -$${Math.round(maxDD).toLocaleString('en-US')}`, padL + 8, padT + plotH - 6);
         g.beginPath();
-        g.arc(X(maxIdx), Y(maxDD), 3, 0, Math.PI * 2);
+        g.arc(X(pts[maxIdx]!.time), Y(maxDD), 3, 0, Math.PI * 2);
         g.fill();
     }
 
@@ -393,19 +633,30 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
         paneSimple.replaceChildren(box);
     }
 
+    function paintConfig(): void {
+        instr.setValue(st.instr);
+        cutoff.value = fmtHM(st.tradingDayCutoff);
+    }
+
     let raf = 0;
     function paint(): void {
         raf = 0;
-        paintList();
-        const simple = st.simMode !== 'full';
-        subtabs.hidden = simple;
-        paneSimple.hidden = !simple;
-        paneLog.hidden = simple || subTab !== 'log';
-        paneEq.hidden = simple || subTab !== 'equity';
+        tabControl.classList.toggle('on', subTab === 'control');
         tabLog.classList.toggle('on', subTab === 'log');
         tabEq.classList.toggle('on', subTab === 'equity');
-        if (simple) return paintSimple();
-        if (subTab === 'log') paintLog();
+        tabConfig.classList.toggle('on', subTab === 'config');
+        const simpleModeActive = st.simMode !== 'full';
+        const showSimple = simpleModeActive && (subTab === 'log' || subTab === 'equity');
+        paneControl.hidden = subTab !== 'control';
+        paneConfig.hidden = subTab !== 'config';
+        paneSimple.hidden = !showSimple;
+        paneLog.hidden = showSimple || subTab !== 'log';
+        paneEq.hidden = showSimple || subTab !== 'equity';
+
+        if (subTab === 'control') paintControl();
+        else if (subTab === 'config') paintConfig();
+        else if (showSimple) paintSimple();
+        else if (subTab === 'log') paintLog();
         else {
             paintEquity();
             paintDrawdown();

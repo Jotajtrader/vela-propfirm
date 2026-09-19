@@ -237,7 +237,12 @@ function snapshot(st: SimState | any): unknown {
             oid: st.oid,
             selAcct: st.selAcct,
             accounts: st.accounts,
-            ledger: st.ledger,
+            // `time` no existe en el HTML — desviación deliberada (ver types.ts LedgerEntry) para
+            // graficar el equity del Tracker con fechas reales; se excluye de la comparación.
+            ledger: st.ledger.map((l: { time?: unknown }) => {
+                const { time: _time, ...rest } = l;
+                return rest;
+            }),
             orders: st.orders,
             live: st.agentLiveAccounts.map((a: { id: string }) => a.id),
             agent: {

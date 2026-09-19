@@ -4,7 +4,7 @@ import type { AtmPreset, HourMinute, Sim, SimHooks, SimMode, SimState, Side, Tem
 import { retagBarsWithCutoff, type Rng, type SimBar } from './data';
 import { atmPresetsFor, defaultAtmPresets, defaultTemplates } from './templates';
 import { activateFundedAccount, buyAccount, collectPayout, tplOf } from './rules';
-import { activeAcct, cancelOrder, closePosition, curPx, openPosition, placeOrder } from './trading';
+import { activeAcct, cancelOrder, closePosition, curPx, openPosition, placeOrder, pv } from './trading';
 import * as replay from './replay';
 import * as agent from './agent';
 import { exportSession, importSession, type SessionDocument } from './session';
@@ -298,6 +298,15 @@ export class Simulator implements Sim {
     }
     currentPrice(): number {
         return curPx(this.state);
+    }
+    /** Epoch ms del bar en curso (para anclar dibujos/anotaciones al cursor del replay). */
+    currentTime(): number {
+        const b = this.state.bars[this.state.idx];
+        return b ? b.t.getTime() : Date.now();
+    }
+    /** Valor en $ de un punto para el instrumento activo (para el P&L abierto fuera del motor). */
+    pointValue(): number {
+        return pv(this.state);
     }
 
     // ── agente ──────────────────────────────────────────────────────────────────────────

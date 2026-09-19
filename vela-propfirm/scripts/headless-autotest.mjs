@@ -65,10 +65,22 @@ try {
             pending.set(id, res);
             ws.send(JSON.stringify({ id, method, params }));
         });
-    const evalJs = async (expression) => (await send('Runtime.evaluate', { expression, returnByValue: true })).result?.result?.value;
+    const evalJs = async (expression) => {
+        const res = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+        if (res.result?.exceptionDetails) throw new Error(res.result.exceptionDetails.exception?.description ?? JSON.stringify(res.result.exceptionDetails));
+        return res.result?.result?.value;
+    };
 
     await send('Runtime.enable');
     await send('Log.enable');
+
+    // EVAL_JS=<código>: se ejecuta apenas la página conecta (tras un pequeño margen de carga),
+    // antes de esperar/capturar — para armar un estado puntual (comprar cuenta, abrir un diálogo…).
+    if (process.env.EVAL_JS) {
+        await sleep(1200);
+        const r = await evalJs(process.env.EVAL_JS);
+        console.log('[eval]', r);
+    }
 
     // WAIT_MS=n: en vez de esperar el "SPIKE DONE", espera n ms (modo captura visual).
     const waitMs = Number(process.env.WAIT_MS) || 0;

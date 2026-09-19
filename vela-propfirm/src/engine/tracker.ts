@@ -50,6 +50,38 @@ export function ledgerEquitySeries(ledger: readonly LedgerEntry[]): number[] {
     return pts;
 }
 
+export interface LedgerPoint {
+    /** Epoch ms del bar en curso al momento del movimiento. */
+    time: number;
+    cum: number;
+}
+
+/**
+ * Igual que {@link ledgerEquitySeries} pero con la fecha real de cada movimiento en vez del
+ * índice, para graficar con eje X cronológico. Descarta entradas sin `time` (sesiones
+ * importadas de un export anterior a esta desviación de paridad — ver `LedgerEntry.time`).
+ */
+export function ledgerEquityPoints(ledger: readonly LedgerEntry[]): LedgerPoint[] {
+    const withTime = ledger.filter((l): l is LedgerEntry & { time: string } => l.time != null);
+    if (!withTime.length) return [];
+    let cum = 0;
+    const pts: LedgerPoint[] = [{ time: Date.parse(withTime[0]!.time), cum: 0 }];
+    for (const l of withTime) {
+        cum += l.amount;
+        pts.push({ time: Date.parse(l.time), cum });
+    }
+    return pts;
+}
+
+/** Drawdown con fecha real — el par cronológico de {@link ledgerDrawdownSeries}. */
+export function ledgerDrawdownPoints(ledger: readonly LedgerEntry[]): LedgerPoint[] {
+    let peak = 0;
+    return ledgerEquityPoints(ledger).map((p) => {
+        if (p.cum > peak) peak = p.cum;
+        return { time: p.time, cum: peak - p.cum };
+    });
+}
+
 /** Drawdown = pico previo − valor actual (≥ 0), misma serie que el equity. */
 export function ledgerDrawdownSeries(ledger: readonly LedgerEntry[]): number[] {
     let cum = 0;

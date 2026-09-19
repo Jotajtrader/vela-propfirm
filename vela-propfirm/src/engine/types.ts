@@ -94,6 +94,14 @@ export interface LedgerEntry {
     amount: number;
     day: number;
     acc: string;
+    /**
+     * ISO del bar en curso al registrar el movimiento (mismo criterio que `Milestone.time`).
+     * No existe en el `<script>` original — desviación deliberada para poder graficar el
+     * equity del Tracker con fechas reales en el eje X en vez del índice del ledger.
+     * `null` si no hay barras cargadas (no debería pasar en la práctica: todo push de ledger
+     * ocurre con datos ya cargados). Excluido de la comparación de paridad contra el HTML.
+     */
+    time: string | null;
 }
 
 export interface TradeLogEntry {

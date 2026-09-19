@@ -133,7 +133,8 @@ export function checkAccount(sim: Sim, acc: Account, tpl: Template | undefined):
                     retireFromAgentLive(state, acc);
                 } else {
                     acc.status = 'funded';
-                    if (tpl!.activationCost > 0) state.ledger.push({ type: 'cost', amount: -tpl!.activationCost, day: state.dayIndex, acc: acc.name });
+                    if (tpl!.activationCost > 0)
+                        state.ledger.push({ type: 'cost', amount: -tpl!.activationCost, day: state.dayIndex, acc: acc.name, time: curBar(state) ? curBar(state)!.t.toISOString() : null });
                 }
             }
             // nueva etapa: reinicia línea base, peak y ventana de consistencia
@@ -191,7 +192,7 @@ export function buyAccount(sim: Sim, tpl: Template, manual?: boolean): Account {
     const acc = newAccountInstance(sim, tpl, state.dayIndex, skipToFunded);
     state.accounts.push(acc);
     state.agentLiveAccounts.push(acc);
-    state.ledger.push({ type: 'cost', amount: -tpl.cost, day: state.dayIndex, acc: acc.name });
+    state.ledger.push({ type: 'cost', amount: -tpl.cost, day: state.dayIndex, acc: acc.name, time: curBar(state) ? curBar(state)!.t.toISOString() : null });
     state.selAcct = acc.id;
     sim.hooks.render();
     return acc;
@@ -300,7 +301,7 @@ export function collectPayout(sim: Sim, acc: Account): void {
     const cashToTrader = withdrawal * (f.splitPct / 100);
     acc.payouts += cashToTrader;
     acc.payoutCount++;
-    state.ledger.push({ type: 'payout', amount: +cashToTrader, day: state.dayIndex, acc: acc.name });
+    state.ledger.push({ type: 'payout', amount: +cashToTrader, day: state.dayIndex, acc: acc.name, time: curBar(state) ? curBar(state)!.t.toISOString() : null });
     // el colchón no se pierde al cobrar: los ciclos siguientes siguen en régimen de extracción
     state.agent.fundedGoalReached[acc.id] = true;
     state.agent.fundedDayCounts[acc.id] = 2;
