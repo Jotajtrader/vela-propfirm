@@ -61,8 +61,15 @@ void ws.chart.ready().then(() => console.log('[propfirm] chart listo — cursor 
 Object.assign(window as unknown as Record<string, unknown>, { ws, sim, propfirm: install });
 
 // `?demo=1`: deja una posición con SL/TP, órdenes de trabajo y un trade cerrado a la vista.
-if (params.has('demo')) {
-    void ws.chart.ready().then(() => {
+// `?agent=1`: corre una corrida entera del agente en modo rápido (datos para el Tracker).
+// `&panel=backtest|tracker`: abre ese panel por su botón del topbar, como lo haría el usuario.
+// `&dialog=buy|order|agent`: abre además un diálogo desde el panel Backtest.
+const openPanel = params.get('panel');
+const clickTopbar = (label: string): void => {
+    (document.querySelector(`[aria-label="${label}"]`) as HTMLElement | null)?.click();
+};
+void ws.chart.ready().then(async () => {
+    if (params.has('demo')) {
         sim.buyAccounts(sim.state.templates[0]!, 1);
         sim.openPosition(1, 2, 6, 9);
         for (let i = 0; i < 25; i++) sim.step();
@@ -71,18 +78,42 @@ if (params.has('demo')) {
         const px = sim.currentPrice();
         sim.placeOrder(1, 'limit', px - 20, 1, 5, 10);
         sim.placeOrder(-1, 'stop', px - 30, 1, 5, 10);
-        // `&panel=1`: abre el panel Backtest por su botón del topbar, como lo haría el usuario.
-        if (params.has('panel')) setTimeout(() => (document.querySelector('[aria-label="Prop firm backtest"]') as HTMLElement | null)?.click(), 300);
-        // `&dialog=buy|order|agent`: abre además un diálogo desde el panel, para revisarlo en captura.
-        const dlg = params.get('dialog');
-        if (dlg)
-            setTimeout(() => {
-                const label = dlg === 'buy' ? '+ Comprar cuentas' : dlg === 'order' ? '▲ COMPRAR' : '⚙ Configurar';
-                const b = [...document.querySelectorAll<HTMLButtonElement>('.pf-btn')].find((x) => x.textContent?.trim() === label);
-                b?.click();
-            }, 900);
-    });
-}
+    }
+    if (params.has('agent')) {
+        sim.applyAgentConfig({
+            tplId: 't1',
+            dateFrom: null,
+            dateTo: null,
+            startTimeOfDay: { h: 9, m: 35 },
+            endTimeOfDay: { h: 12, m: 0 },
+            challengeTarget: 3,
+            maxFundedActive: 2,
+            maxWaiting: 2,
+            profitPauseChallenge: 250,
+            profitPauseFundedDay1: 200,
+            profitPauseFundedRest: 100,
+            waitMinMin: 1,
+            waitMaxMin: 4,
+            qty: 2,
+        });
+        await sim.fastForward({ chunkMs: 20 });
+    }
+    if (openPanel) setTimeout(() => clickTopbar(openPanel === 'tracker' ? 'Tracker' : 'Prop firm backtest'), 300);
+    // `&sub=equity|log&acct=N`: en el Tracker, elige la sub-pestaña y la N-ésima cuenta listada.
+    if (openPanel === 'tracker' && (params.has('sub') || params.has('acct')))
+        setTimeout(() => {
+            const n = Number(params.get('acct') ?? -1);
+            if (n >= 0) (document.querySelectorAll<HTMLElement>('.pf-trk .pf-card')[n] ?? null)?.click();
+            const sub = params.get('sub');
+            if (sub) [...document.querySelectorAll<HTMLButtonElement>('.pf-trk .subtabs .pf-btn')].find((b) => b.textContent?.includes(sub === 'equity' ? 'Equity' : 'Registro'))?.click();
+        }, 900);
+    const dlg = params.get('dialog');
+    if (dlg)
+        setTimeout(() => {
+            const label = dlg === 'buy' ? '+ Comprar cuentas' : dlg === 'order' ? '▲ COMPRAR' : '⚙ Configurar';
+            [...document.querySelectorAll<HTMLButtonElement>('.pf-btn')].find((x) => x.textContent?.trim() === label)?.click();
+        }, 900);
+});
 
 // ── autotest ──────────────────────────────────────────────────────────────────────────────
 interface Run {

@@ -9,6 +9,7 @@ import { installKeymap } from './keymap';
 import { OVERLAY_ID } from './overlay';
 import './replay-bar';
 import './panel-backtest';
+import './panel-tracker';
 
 export interface PropFirmInstall {
     provider: ReplayProvider;
