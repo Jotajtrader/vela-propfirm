@@ -8,13 +8,14 @@ import { registerIcon, registerSidePanel, registerWidgetAction, type WidgetConte
 import { NumberInput, Select, injectStyles, svg16 } from '@luxalgo/vela/ui';
 import type { Simulator } from '../engine/Simulator';
 import type { Account, AccountCategory, Milestone, TradeLogEntry } from '../engine/types';
-import { PV, parseCSV } from '../engine/data';
+import { PV } from '../engine/data';
 import { money } from '../engine/format';
 import { acctCategory, isPayoutEligible, rulesFor, targetBalOf, thresholdOf, tplOf, isPhase } from '../engine/rules';
 import { computeTrackerStats, ledgerDrawdownPoints, ledgerEquityPoints, statusBadge, trackerSimpleStats, type LedgerPoint } from '../engine/tracker';
 import { getSimulator } from './context';
 import { btn, cssVar, ensureStyles, fmtHM, h, hint, labeled, nativeInput, parseHM } from './ui';
 import { openBuyDialog } from './dialogs/buy';
+import { parseCSVAsync } from './csv-async';
 
 export const TRACKER_ID = 'propfirm.tracker';
 
@@ -191,11 +192,27 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
     const csvFile = nativeInput('file');
     csvFile.accept = '.csv,.txt';
     csvFile.hidden = true;
+    const csvBtn = btn('Cargar CSV', () => csvFile.click());
+    // Un CSV de años de datos intradía (cientos de miles de líneas) parseado de una sola pasada
+    // bloqueaba el hilo principal varios segundos seguidos — el navegador terminaba mostrando
+    // "Page Unresponsive". parseCSVAsync() reusa parseCSV() tal cual (misma lógica, sin tocarla)
+    // pero de a pedazos, cediendo el control entre cada uno.
     csvFile.addEventListener('change', () => {
         const f = csvFile.files?.[0];
         if (!f) return;
         const r = new FileReader();
-        r.onload = () => sim.loadBars(parseCSV(String(r.result), st.tradingDayCutoff));
+        r.onload = async () => {
+            csvBtn.disabled = true;
+            try {
+                const bars = await parseCSVAsync(String(r.result), st.tradingDayCutoff, (done, total) => {
+                    csvBtn.textContent = `Cargando… ${Math.round((done / total) * 100)}%`;
+                });
+                sim.loadBars(bars);
+            } finally {
+                csvBtn.disabled = false;
+                csvBtn.textContent = 'Cargar CSV';
+            }
+        };
         r.readAsText(f);
         csvFile.value = '';
     });
@@ -220,7 +237,7 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
     dataRow.style.flexWrap = 'wrap';
     dataRow.append(
         btn('Datos demo', () => import('../engine/data').then((m) => sim.loadBars(m.genSample()))),
-        btn('Cargar CSV', () => csvFile.click()),
+        csvBtn,
         btn('Exportar sesión', () => {
             const blob = new Blob([JSON.stringify(sim.exportSession())], { type: 'application/json' });
             const a = h('a');
