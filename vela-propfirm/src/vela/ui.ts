@@ -4,75 +4,99 @@ import { injectStyles } from '@luxalgo/vela/ui';
 
 export const STYLE_ID = 'propfirm-ui';
 export const CSS = `
+/* ── tokens, inspirados en la estética de luxalgo.com (fondo casi negro en capas, teal de marca
+   #0f9c85, verde/rojo alineados a TradingView, bordes en blanco-alpha muy tenues, radios 4-8px) —
+   escapados a .pf para no tocar el resto del shell de Vela. Con contraparte clara si el usuario
+   pasa el chart a theme:'light'. */
+.pf{
+  --lux-accent:#0f9c85; --lux-accent-fg:#ffffff;
+  --lux-bg:#0a0a0a; --lux-bg-2:#141414; --lux-bg-3:#1c1c1c;
+  --lux-border:rgba(255,255,255,.08); --lux-border-strong:rgba(255,255,255,.16);
+  --lux-fg:#ededed; --lux-fg-muted:#a0a0a0; --lux-fg-subtle:#7d7d7d;
+  --lux-up:#089981; --lux-down:#f23645; --lux-warn:#ffa02f;
+  --lux-radius-sm:4px; --lux-radius-md:6px; --lux-radius-lg:8px;
+}
+:root[data-theme=light] .pf{
+  --lux-accent:#0f9c85; --lux-accent-fg:#ffffff;
+  --lux-bg:#fafafa; --lux-bg-2:#f0f0f0; --lux-bg-3:#e6e6e6;
+  --lux-border:rgba(0,0,0,.08); --lux-border-strong:rgba(0,0,0,.18);
+  --lux-fg:#171717; --lux-fg-muted:#555555; --lux-fg-subtle:#7d7d7d;
+  --lux-up:#089981; --lux-down:#f23645; --lux-warn:#c97600;
+}
 /* el atributo [hidden] debe ganarle a cualquier clase que fije su propio display (.row/.col fijan
    flex) — si no, un elemento oculto con esas clases queda visible igual (empate de especificidad
    resuelto por orden de aparición, no por [hidden]). */
 .pf [hidden]{display:none !important}
-.pf{font:12px/1.4 var(--vela-font-family,system-ui);color:var(--vela-fg)}
-.pf .sec{padding:10px 12px;border-bottom:1px solid var(--vela-border-soft)}
-.pf .sec h3{margin:0 0 8px;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--vela-fg-muted)}
+.pf{font:12px/1.4 var(--vela-font-family,system-ui);color:var(--lux-fg);background:var(--lux-bg)}
+.pf .sec{margin:8px 10px;padding:12px;border:1px solid var(--lux-border);border-radius:var(--lux-radius-lg);background:var(--lux-bg-2)}
+.pf .sec h3{margin:0 0 10px;font-size:10px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--lux-fg-subtle);display:flex;align-items:center;gap:6px}
+.pf .sec h3::before{content:'';display:inline-block;width:3px;height:11px;border-radius:2px;background:var(--lux-accent);flex:none}
 .pf .row{display:flex;gap:6px;align-items:center}
 .pf .col{display:flex;flex-direction:column;gap:6px}
 .pf .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .pf .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
 .pf .kv{display:flex;justify-content:space-between;gap:8px;padding:1px 0;font-variant-numeric:tabular-nums}
-.pf .kv .k{color:var(--vela-fg-muted)} .pf .kv .v{font-weight:600}
-.pf .pos{color:var(--vela-up,#26a65b)} .pf .neg{color:var(--vela-down,#e0524f)}
-.pf .hint{color:var(--vela-fg-muted);font-size:11px;line-height:1.5}
-.pf .mini{font-size:11px;color:var(--vela-fg-muted);font-variant-numeric:tabular-nums}
-.pf .stat-net{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
-.pf .lbl{display:block;color:var(--vela-fg-muted);font-size:10px;margin-bottom:2px}
-.pf-btn{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:5px 9px;border-radius:var(--vela-radius-sm);
-  border:1px solid var(--vela-border-soft);background:var(--vela-surface-raised,transparent);color:var(--vela-fg);cursor:pointer;font:inherit;line-height:1.3;white-space:nowrap}
-.pf-btn:hover{border-color:var(--vela-accent)}
+.pf .kv .k{color:var(--lux-fg-muted)} .pf .kv .v{font-weight:600;color:var(--lux-fg)}
+.pf .pos{color:var(--lux-up)} .pf .neg{color:var(--lux-down)}
+.pf .hint{color:var(--lux-fg-muted);font-size:11px;line-height:1.5}
+.pf .mini{font-size:11px;color:var(--lux-fg-muted);font-variant-numeric:tabular-nums}
+.pf .stat-net{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--lux-fg)}
+.pf .lbl{display:block;color:var(--lux-fg-muted);font-size:10px;margin-bottom:2px}
+.pf-btn{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 10px;border-radius:var(--lux-radius-md);
+  border:1px solid var(--lux-border);background:var(--lux-bg-3);color:var(--lux-fg);cursor:pointer;font:inherit;line-height:1.3;white-space:nowrap;
+  transition:background-color .12s ease,border-color .12s ease}
+.pf-btn:hover{border-color:var(--lux-border-strong);background:color-mix(in srgb,var(--lux-fg) 6%,var(--lux-bg-3))}
 .pf-btn:disabled{opacity:.4;cursor:not-allowed}
-.pf-btn.on{background:var(--vela-accent);border-color:var(--vela-accent);color:var(--vela-fg-on-accent,#0b0e14)}
-.pf-btn.buy{border-color:var(--vela-up,#26a65b)} .pf-btn.buy:hover{background:var(--vela-up,#26a65b);color:#04120a}
-.pf-btn.sell{border-color:var(--vela-down,#e0524f)} .pf-btn.sell:hover{background:var(--vela-down,#e0524f);color:#1a0505}
-.pf-btn.big{padding:8px 12px;font-weight:700;border:none}
-.pf-btn.big.buy{background:var(--vela-up,#26a65b);color:#04120a} .pf-btn.big.sell{background:var(--vela-down,#e0524f);color:#1a0505}
-.pf-btn.big.flat{background:var(--vela-surface-raised,transparent);color:var(--vela-fg);border:1px solid var(--vela-border-soft)}
+.pf-btn.on{background:var(--lux-accent);border-color:var(--lux-accent);color:var(--lux-accent-fg)}
+.pf-btn.on:hover{background:var(--lux-accent);filter:brightness(1.08)}
+.pf-btn.buy{border-color:var(--lux-up)} .pf-btn.buy:hover{background:var(--lux-up);color:#fff}
+.pf-btn.sell{border-color:var(--lux-down)} .pf-btn.sell:hover{background:var(--lux-down);color:#fff}
+.pf-btn.big{padding:9px 14px;font-weight:700;border:none;border-radius:var(--lux-radius-lg)}
+.pf-btn.big.buy{background:var(--lux-up);color:#fff} .pf-btn.big.sell{background:var(--lux-down);color:#fff}
+.pf-btn.big.flat{background:var(--lux-bg-3);color:var(--lux-fg);border:1px solid var(--lux-border-strong)}
 .pf-btn.wide{width:100%}
 .pf-btn.tab{flex:1;padding:6px 2px;font-size:10px;overflow:hidden;text-overflow:ellipsis}
 .pf-btn .cnt{opacity:.65;margin-left:2px}
 .pf-tabs{display:flex;gap:4px}
-.pf-list{display:flex;flex-direction:column;gap:5px;max-height:260px;overflow-y:auto}
-.pf-card{border:1px solid var(--vela-border-soft);border-radius:var(--vela-radius-md);padding:6px 8px;background:var(--vela-surface-raised,transparent);cursor:pointer}
-.pf-card.sel{border-color:var(--vela-accent);background:color-mix(in srgb,var(--vela-accent) 14%,transparent)}
+.pf-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto}
+.pf-card{border:1px solid var(--lux-border);border-radius:var(--lux-radius-lg);padding:8px 10px;background:var(--lux-bg-3);cursor:pointer;
+  transition:border-color .12s ease,background-color .12s ease}
+.pf-card:hover{border-color:var(--lux-border-strong)}
+.pf-card.sel{border-color:var(--lux-accent);background:color-mix(in srgb,var(--lux-accent) 14%,var(--lux-bg-3))}
 .pf-card .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
-.pf-card .nm{font-weight:600}
-.pf-badge{font-size:9px;padding:1px 5px;border-radius:8px;text-transform:uppercase;letter-spacing:.5px}
-.pf-badge.b-p1{background:color-mix(in srgb,var(--vela-fg) 12%,transparent);color:var(--vela-fg)}
-.pf-badge.b-funded{background:color-mix(in srgb,var(--vela-up,#26a65b) 22%,transparent);color:var(--vela-up,#26a65b)}
-.pf-badge.b-blown{background:color-mix(in srgb,var(--vela-down,#e0524f) 22%,transparent);color:var(--vela-down,#e0524f)}
-.pf-badge.b-paid{background:color-mix(in srgb,#e0a53f 25%,transparent);color:#b5790f} .pf-badge.b-paused{background:color-mix(in srgb,#e0a53f 25%,transparent);color:#b5790f}
-:root:not([data-theme=light]) .pf-badge.b-paid,:root:not([data-theme=light]) .pf-badge.b-paused{color:#ffb84d}
+.pf-card .nm{font-weight:600;color:var(--lux-fg)}
+.pf-badge{font-size:9px;padding:2px 6px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+.pf-badge.b-p1{background:color-mix(in srgb,var(--lux-fg) 14%,transparent);color:var(--lux-fg)}
+.pf-badge.b-funded{background:color-mix(in srgb,var(--lux-up) 22%,transparent);color:var(--lux-up)}
+.pf-badge.b-blown{background:color-mix(in srgb,var(--lux-down) 22%,transparent);color:var(--lux-down)}
+.pf-badge.b-paid{background:color-mix(in srgb,var(--lux-warn) 25%,transparent);color:var(--lux-warn)}
+.pf-badge.b-paused{background:color-mix(in srgb,var(--lux-warn) 25%,transparent);color:var(--lux-warn)}
 .pf-bars{display:flex;gap:2px;margin-top:4px}
-.pf-bar{flex:1;height:4px;border-radius:2px;background:color-mix(in srgb,var(--vela-fg) 12%,transparent);overflow:hidden}
+.pf-bar{flex:1;height:4px;border-radius:2px;background:var(--lux-bg);overflow:hidden}
 .pf-bar .fill{height:100%}
-.pf-canvas{width:100%;height:90px;display:block;background:var(--vela-surface,transparent);border:1px solid var(--vela-border-soft);border-radius:var(--vela-radius-sm)}
+.pf-canvas{width:100%;height:90px;display:block;background:var(--lux-bg);border:1px solid var(--lux-border);border-radius:var(--lux-radius-md)}
 .pf-ordrow{display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-variant-numeric:tabular-nums}
 .pf-chips{display:flex;gap:4px;flex-wrap:wrap}
 .pf-seg{display:flex;gap:4px} .pf-seg .pf-btn{flex:1}
-.pf-native{background-color:var(--vela-bg,#0b0e11);color:var(--vela-fg);border:1px solid var(--vela-border-soft);border-radius:var(--vela-radius-sm);padding:5px 7px;font:inherit;width:100%;box-sizing:border-box;color-scheme:dark}
-.pf-native:focus{outline:none;border-color:var(--vela-accent)}
+.pf-native{background-color:var(--lux-bg-3);color:var(--lux-fg);border:1px solid var(--lux-border);border-radius:var(--lux-radius-md);padding:6px 8px;font:inherit;width:100%;box-sizing:border-box;color-scheme:dark}
+.pf-native:focus{outline:none;border-color:var(--lux-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--lux-accent) 25%,transparent)}
 /* el listado desplegado de un <select> es chrome nativo del SO — Chromium sí respeta el color de
    fondo puesto en <option>/<optgroup>, así que se fija explícito para que no aparezca blanco. */
-select.pf-native option,select.pf-native optgroup{background-color:var(--vela-bg,#0b0e11);color:var(--vela-fg)}
+select.pf-native option,select.pf-native optgroup{background-color:var(--lux-bg-2);color:var(--lux-fg)}
 :root[data-theme=light] .pf-native,:root[data-theme=light] select.pf-native option,:root[data-theme=light] select.pf-native optgroup{color-scheme:light}
 .pf-dialog{width:min(92vw,var(--pf-w,380px))}
 .pf-dialog .body{display:flex;flex-direction:column;gap:10px}
 .pf-foot{display:flex;justify-content:flex-end;gap:8px}
-.pf-phase{border:1px solid var(--vela-border-soft);border-radius:var(--vela-radius-md);padding:8px;background:var(--vela-surface-raised,transparent);display:flex;flex-direction:column;gap:6px}
-.pf-sep{border-top:1px solid var(--vela-border-soft);padding-top:8px;margin-top:2px}
-.pf-title{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--vela-accent)}
-.pf-title.green{color:var(--vela-up,#26a65b)} .pf-title.muted{color:var(--vela-fg-muted)}
+.pf-phase{border:1px solid var(--lux-border);border-radius:var(--lux-radius-lg);padding:10px;background:var(--lux-bg-2);display:flex;flex-direction:column;gap:6px}
+.pf-sep{border-top:1px solid var(--lux-border);padding-top:8px;margin-top:2px}
+.pf-title{font-size:10px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--lux-accent)}
+.pf-title.green{color:var(--lux-up)} .pf-title.muted{color:var(--lux-fg-subtle)}
 .pf-toggrow{display:flex;align-items:center;gap:8px}
 .pf-toggrow .grow{flex:1}
 .pf-unit-field{display:flex;align-items:center;gap:4px}
-.pf-unit-seg{display:flex;border:1px solid var(--vela-border-soft);border-radius:var(--vela-radius-sm);overflow:hidden}
-.pf-unit-seg button{all:unset;padding:4px 6px;font-size:10px;color:var(--vela-fg-muted);cursor:pointer;line-height:1}
-.pf-unit-seg button.on{background:var(--vela-accent);color:var(--vela-fg-on-accent,#0b0e14)}
+.pf-unit-seg{display:flex;border:1px solid var(--lux-border);border-radius:var(--lux-radius-sm);overflow:hidden}
+.pf-unit-seg button{all:unset;padding:4px 6px;font-size:10px;color:var(--lux-fg-muted);cursor:pointer;line-height:1}
+.pf-unit-seg button.on{background:var(--lux-accent);color:var(--lux-accent-fg)}
 .pf-unit-seg button:disabled{opacity:.4;cursor:not-allowed}
 `;
 

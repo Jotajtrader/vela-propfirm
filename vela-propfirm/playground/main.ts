@@ -100,7 +100,7 @@ void ws.chart.ready().then(async () => {
         });
         await sim.fastForward({ chunkMs: 20 });
     }
-    if (openPanel) setTimeout(() => clickTopbar(openPanel === 'tracker' ? 'Tracker' : 'Prop firm backtest'), 300);
+    if (openPanel) setTimeout(() => clickTopbar(openPanel === 'tracker' ? 'Centro de control' : 'Trading Panel'), 300);
     // `&sub=equity|log&acct=N`: en el Tracker, elige la sub-pestaña y la N-ésima cuenta listada.
     if (openPanel === 'tracker' && (params.has('sub') || params.has('acct')))
         setTimeout(() => {

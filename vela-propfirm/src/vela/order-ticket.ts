@@ -15,12 +15,14 @@ const STYLE_ID = 'propfirm-order-ticket';
 const CSS = `
 .pf-ticket{position:absolute;top:40px;left:8px;z-index:15;display:flex;gap:5px;align-items:center}
 .pf-ticket[hidden]{display:none}
-.pf-ticket .pf-btn{padding:6px 11px;font-weight:700;font-size:11px;border:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
-.pf-ticket .pf-btn.buy{background:var(--vela-up,#26a65b);color:#04120a}
-.pf-ticket .pf-btn.sell{background:var(--vela-down,#e0524f);color:#1a0505}
-.pf-ticket .pf-btn.close{background:var(--vela-surface-overlay);border:1px solid var(--vela-border-soft);color:var(--vela-fg)}
+.pf-ticket .pf-btn{padding:6px 11px;font-weight:700;font-size:11px;border:none;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.pf-ticket .pf-btn.buy{background:var(--vela-up,#089981);color:#fff}
+.pf-ticket .pf-btn.sell{background:var(--vela-down,#f23645);color:#fff}
+/* --vela-surface-overlay resultó demasiado clara acá (pensada para otro contexto) — fondo oscuro
+   fijo, consistente con la paleta de Trading Panel/Centro de control en vez de depender de ese token. */
+.pf-ticket .pf-btn.close{background:#1c1c1c;border:1px solid rgba(255,255,255,.14);color:#ededed}
 .pf-ticket .px{font-weight:400;opacity:.85;margin-left:4px;font-variant-numeric:tabular-nums}
-.pf-ticket .pos{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:var(--vela-radius-sm);background:var(--vela-surface-overlay);
+.pf-ticket .pos{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:6px;background:#1c1c1c;
   border:1px solid var(--vela-border-soft);font:11px/1.3 var(--vela-font-family,system-ui);color:var(--vela-fg);box-shadow:0 2px 8px rgba(0,0,0,.3)}
 `;
 
