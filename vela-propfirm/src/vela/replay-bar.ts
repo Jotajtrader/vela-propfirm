@@ -5,6 +5,7 @@ import { registerWidgetAttachment, type WidgetContext } from '@luxalgo/vela/plug
 import { injectStyles } from '@luxalgo/vela/ui';
 import { SPEED_MS } from '../engine/replay';
 import { fmtTime } from '../engine/data';
+import { prefsFingerprint } from '../engine/prefs';
 import type { Simulator } from '../engine/Simulator';
 import { getSimulator } from './context';
 
@@ -122,7 +123,16 @@ function mountReplayBar(ctx: WidgetContext, sim: Simulator): () => void {
     };
     paint();
 
-    const offChange = sim.on('change', refresh);
+    // Avisar al shell solo cuando cambió algo PERSISTIBLE (no en cada barra del replay).
+    let fingerprint = prefsFingerprint(st);
+    const offChange = sim.on('change', () => {
+        refresh();
+        const next = prefsFingerprint(st);
+        if (next !== fingerprint) {
+            fingerprint = next;
+            ctx.stateChanged();
+        }
+    });
     const offAlert = sim.on('alert', (msg) => ctx.toast(msg, 'error'));
     const offNotice = sim.on('notice', ({ msg, kind }) => ctx.toast(msg, kind === 'blown' ? 'error' : 'info'));
     return () => {

@@ -38,8 +38,11 @@ export const CSS = `
 .pf-card .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
 .pf-card .nm{font-weight:600}
 .pf-badge{font-size:9px;padding:1px 5px;border-radius:8px;text-transform:uppercase;letter-spacing:.5px}
-.pf-badge.b-p1{background:#2a3340;color:#9fb4cc} .pf-badge.b-funded{background:#1e3a28;color:#7fdca0}
-.pf-badge.b-blown{background:#3a1e1e;color:#e88} .pf-badge.b-paid{background:#3a3320;color:#e0c060} .pf-badge.b-paused{background:#2a2308;color:#ffb84d}
+.pf-badge.b-p1{background:color-mix(in srgb,var(--vela-fg) 12%,transparent);color:var(--vela-fg)}
+.pf-badge.b-funded{background:color-mix(in srgb,var(--vela-up,#26a65b) 22%,transparent);color:var(--vela-up,#26a65b)}
+.pf-badge.b-blown{background:color-mix(in srgb,var(--vela-down,#e0524f) 22%,transparent);color:var(--vela-down,#e0524f)}
+.pf-badge.b-paid{background:color-mix(in srgb,#e0a53f 25%,transparent);color:#b5790f} .pf-badge.b-paused{background:color-mix(in srgb,#e0a53f 25%,transparent);color:#b5790f}
+:root:not([data-theme=light]) .pf-badge.b-paid,:root:not([data-theme=light]) .pf-badge.b-paused{color:#ffb84d}
 .pf-bars{display:flex;gap:2px;margin-top:4px}
 .pf-bar{flex:1;height:4px;border-radius:2px;background:color-mix(in srgb,var(--vela-fg) 12%,transparent);overflow:hidden}
 .pf-bar .fill{height:100%}

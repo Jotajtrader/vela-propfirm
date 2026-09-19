@@ -19,9 +19,11 @@ const ws = new VelaWorkspace('#chart', {
     symbol: 'replay:NQ',
     timeframe: TF,
     live: true,
-    theme: 'dark',
+    theme: params.get('theme') === 'light' ? 'light' : 'dark',
     autofocus: true,
-    persist: false,
+    // Persistencia del shell (mercado, config, dibujos, paneles) + nuestras prefs vía registerStatePersistence.
+    // El autotest y las capturas corren en perfiles de Chrome vacíos, así que arrancan limpios igual.
+    persist: params.has('nopersist') ? false : 'vela-propfirm',
     timeframes: ['1', '5', '15', '30', '60', '240', 'D'],
     providers: { replay: () => propfirm.provider },
     engines: { pine: () => new PineWorkerEngine() },
@@ -123,7 +125,47 @@ interface Run {
     plots: Record<string, unknown>;
 }
 
-if (AUTOTEST) void runAutotest();
+if (params.get('autotest') === 'persist') void runPersistTest();
+else if (AUTOTEST) void runAutotest();
+
+/** `?autotest=persist`: cambia prefs, deja que el shell las guarde, recarga y comprueba que volvieron. */
+async function runPersistTest(): Promise<void> {
+    const pre = document.createElement('pre');
+    pre.id = 'spike-results';
+    pre.style.cssText = 'position:absolute;top:40px;left:8px;z-index:99;color:#9f9;background:#000c;padding:8px;font:11px/1.4 monospace;margin:0';
+    document.body.appendChild(pre);
+    const out: string[] = [];
+    let ok = 0;
+    let fail = 0;
+    const log = (s: string): void => {
+        out.push(s);
+        pre.textContent = out.join('\n');
+    };
+    const check = (cond: boolean, label: string): void => {
+        cond ? ok++ : fail++;
+        log(`${cond ? 'PASS' : 'FAIL'} ${label}`);
+    };
+    await ws.chart.ready();
+    if (params.get('phase') !== '2') {
+        sim.setSimMode('challenge');
+        sim.setInstrument('GC');
+        sim.setCommission(1.75);
+        sim.saveAtmPreset('t1', { name: 'Persistido', type: 'market', qty: 1, sl: 5, tp: 5, price: null });
+        log('fase 1: prefs cambiadas, esperando el guardado del shell…');
+        await new Promise((r) => setTimeout(r, 1500));
+        const url = new URL(location.href);
+        url.searchParams.set('phase', '2');
+        location.href = url.toString();
+        return;
+    }
+    check(sim.state.simMode === 'challenge', `fase 2: simMode restaurado (${sim.state.simMode})`);
+    check(sim.state.instr === 'GC', `fase 2: instrumento restaurado (${sim.state.instr})`);
+    check(sim.state.comm === 1.75, `fase 2: comisión restaurada (${sim.state.comm})`);
+    check(sim.atmPresets('t1').some((p) => p.name === 'Persistido'), 'fase 2: preset ATM restaurado');
+    check(sim.state.accounts.length === 0 && sim.state.agent.active === false, 'fase 2: sin cuentas ni agente activo (solo prefs)');
+    log(`DONE ok=${ok} fail=${fail}`);
+    document.title = `SPIKE DONE ok=${ok} fail=${fail}`;
+}
 
 async function runAutotest(): Promise<void> {
     const pre = document.createElement('pre');
