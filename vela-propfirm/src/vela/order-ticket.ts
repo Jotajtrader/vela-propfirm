@@ -13,17 +13,15 @@ import { ORDER_PANEL_ID } from './panel-order';
 
 const STYLE_ID = 'propfirm-order-ticket';
 const CSS = `
-.pf-ticket{position:absolute;top:40px;left:8px;z-index:15;display:flex;gap:5px;align-items:center}
+.pf-ticket{position:absolute;top:40px;left:8px;z-index:15;display:flex;gap:6px;align-items:center}
 .pf-ticket[hidden]{display:none}
-.pf-ticket .pf-btn{padding:6px 11px;font-weight:700;font-size:11px;border:none;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
-.pf-ticket .pf-btn.buy{background:var(--vela-up,#089981);color:#fff}
-.pf-ticket .pf-btn.sell{background:var(--vela-down,#f23645);color:#fff}
-/* --vela-surface-overlay resultó demasiado clara acá (pensada para otro contexto) — fondo oscuro
-   fijo, consistente con la paleta de Trading Panel/Centro de control en vez de depender de ese token. */
-.pf-ticket .pf-btn.close{background:#1c1c1c;border:1px solid rgba(255,255,255,.14);color:#ededed}
-.pf-ticket .px{font-weight:400;opacity:.85;margin-left:4px;font-variant-numeric:tabular-nums}
-.pf-ticket .pos{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:6px;background:#1c1c1c;
-  border:1px solid var(--vela-border-soft);font:11px/1.3 var(--vela-font-family,system-ui);color:var(--vela-fg);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.pf-ticket .pf-btn{padding:9px 13px;font-weight:700;font-size:11.5px;border:none;border-radius:var(--lux-radius-md);box-shadow:0 4px 14px rgba(0,0,0,.45)}
+.pf-ticket .pf-btn.buy{background:var(--lux-up);color:#fff}
+.pf-ticket .pf-btn.sell{background:var(--lux-down);color:#fff}
+.pf-ticket .pf-btn.close{background:var(--lux-bg-3);border:1px solid var(--lux-border-strong);color:var(--lux-fg)}
+.pf-ticket .px{font-weight:500;font-family:var(--lux-mono);opacity:.85;margin-left:5px;font-variant-numeric:tabular-nums}
+.pf-ticket .pos{display:flex;align-items:center;gap:8px;padding:7px 11px;border-radius:var(--lux-radius-md);background:var(--lux-bg-2);
+  border:1px solid var(--lux-border);font:500 11.5px/1.3 var(--lux-mono);color:var(--lux-fg);box-shadow:0 4px 14px rgba(0,0,0,.4)}
 `;
 
 function mountTicket(ctx: WidgetContext, sim: Simulator): () => void {

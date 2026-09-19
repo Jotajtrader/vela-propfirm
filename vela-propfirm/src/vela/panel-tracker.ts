@@ -20,27 +20,29 @@ export const TRACKER_ID = 'propfirm.tracker';
 
 const CSS = `
 .pf-trk{display:flex;flex-direction:column;min-height:100%;background:var(--lux-bg)}
-.pf-trk .subtabs{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid var(--lux-border)}
-.pf-trk .pane{padding:16px}
+.pf-trk .subtabs{display:flex;gap:6px;padding:14px;border-bottom:1px solid var(--lux-border)}
+.pf-trk .pane{padding:18px}
 .pf-trk .pane.narrow{max-width:640px}
-.pf-table{width:100%;border-collapse:collapse;font-size:11px}
-.pf-table th{text-align:left;color:var(--lux-fg-subtle);font-weight:600;letter-spacing:.3px;padding:7px 8px;border-bottom:1px solid var(--lux-border);position:sticky;top:0;background:var(--lux-bg)}
-.pf-table td{padding:6px 8px;border-bottom:1px solid var(--lux-border);font-variant-numeric:tabular-nums;color:var(--lux-fg)}
-.pf-table tr:hover td{background:color-mix(in srgb,var(--lux-fg) 5%,transparent)}
-.pf-table tr.ms td{background:color-mix(in srgb,var(--lux-accent) 12%,transparent);border-left:3px solid var(--lux-accent);padding:7px 8px}
+.pf-table{width:100%;border-collapse:collapse;font-size:12px}
+.pf-table th{text-align:left;color:var(--lux-fg-subtle);font-weight:600;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  padding:10px;border-bottom:1px solid var(--lux-border);position:sticky;top:0;background:var(--lux-bg)}
+.pf-table td{padding:10px;border-bottom:1px solid var(--lux-border);font-family:var(--lux-mono);font-variant-numeric:tabular-nums;color:var(--lux-fg)}
+.pf-table tr:hover td{background:var(--lux-bg-2)}
+.pf-table tr.ms td{background:var(--lux-accent-soft);border-left:2px solid var(--lux-accent);font-family:var(--vela-font-family,system-ui)}
 .pf-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
-.pf-stat{background:var(--lux-bg-2);border:1px solid var(--lux-border);border-radius:var(--lux-radius-lg);padding:14px}
-.pf-stat .num{font-size:26px;font-weight:700;margin:4px 0;font-variant-numeric:tabular-nums;color:var(--lux-fg)}
+.pf-stat{background:var(--lux-bg-2);border:1px solid var(--lux-border);border-radius:var(--lux-radius-lg);padding:16px;display:flex;flex-direction:column;gap:6px}
+.pf-stat .num{font:700 26px/1 var(--lux-mono);margin:0;font-variant-numeric:tabular-nums;color:var(--lux-fg)}
 .pf-stat.span{grid-column:1/3}
-.pf-eq{width:100%;height:340px;display:block;background:var(--lux-bg);border:1px solid var(--lux-border);border-radius:var(--lux-radius-lg)}
-.pf-dd{width:100%;height:160px;display:block;background:var(--lux-bg);border:1px solid var(--lux-border);border-radius:var(--lux-radius-lg)}
-.pf-tip{position:absolute;z-index:4;pointer-events:none;background:var(--lux-bg-3);border:1px solid var(--lux-border-strong);border-radius:var(--lux-radius-md);padding:6px 10px;font-size:11px;line-height:1.55;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.5);color:var(--lux-fg)}
-.pf-tip .r{display:flex;justify-content:space-between;gap:14px} .pf-tip .k{color:var(--lux-fg-muted)}
-.pf-simple{text-align:center;padding:40px 20px}
-.pf-simple .big{font-size:56px;font-weight:700;margin:14px 0}
+.pf-eq{width:100%;height:340px;display:block;background:var(--lux-bg-2);border:1px solid var(--lux-border);border-radius:var(--lux-radius-lg)}
+.pf-dd{width:100%;height:160px;display:block;background:var(--lux-bg-2);border:1px solid var(--lux-border);border-radius:var(--lux-radius-lg)}
+.pf-tip{position:absolute;z-index:4;pointer-events:none;background:var(--lux-bg-3);border:1px solid var(--lux-border-strong);border-radius:var(--lux-radius-md);
+  padding:8px 11px;font-size:11.5px;line-height:1.6;white-space:nowrap;box-shadow:0 12px 32px rgba(0,0,0,.55);color:var(--lux-fg)}
+.pf-tip .r{display:flex;justify-content:space-between;gap:16px} .pf-tip .k{color:var(--lux-fg-muted)}
+.pf-simple{text-align:center;padding:48px 20px}
+.pf-simple .big{font:700 56px/1 var(--lux-mono);margin:16px 0}
 .pf-trk .canvaswrap{position:relative}
-.pf-control-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}
-.pf-log-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.pf-control-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:14px}
+.pf-log-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
 `;
 
 registerIcon('propfirm.tracker', svg16('<path d="M3 3.5h10M3 8h10M3 12.5h6"/><circle cx="12.5" cy="12.5" r="1.2"/>'));
@@ -474,10 +476,10 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
         const { g, w, h: hgt } = fitCanvas(eqCv);
         g.clearRect(0, 0, w, hgt);
         const font = cssVar(eqCv, '--vela-font-family', 'system-ui');
-        const muted = cssVar(eqCv, '--vela-fg-muted', '#8892a0');
-        const grid = cssVar(eqCv, '--vela-border-soft', '#2a3340');
-        const up = cssVar(eqCv, '--vela-up', '#26a65b');
-        const down = cssVar(eqCv, '--vela-down', '#e0524f');
+        const muted = cssVar(eqCv, '--lux-fg-muted', '#8f8f8f');
+        const grid = cssVar(eqCv, '--lux-border', 'rgba(255,255,255,.08)');
+        const up = cssVar(eqCv, '--lux-up', '#089981');
+        const down = cssVar(eqCv, '--lux-down', '#f23645');
         const padL = 64;
         const padR = 16;
         const padT = 16;
@@ -541,9 +543,9 @@ function mountTracker(ctx: WidgetContext, sim: Simulator, body: HTMLElement): ()
         const { g, w, h: hgt } = fitCanvas(ddCv);
         g.clearRect(0, 0, w, hgt);
         const font = cssVar(ddCv, '--vela-font-family', 'system-ui');
-        const muted = cssVar(ddCv, '--vela-fg-muted', '#8892a0');
-        const grid = cssVar(ddCv, '--vela-border-soft', '#2a3340');
-        const down = cssVar(ddCv, '--vela-down', '#e0524f');
+        const muted = cssVar(ddCv, '--lux-fg-muted', '#8f8f8f');
+        const grid = cssVar(ddCv, '--lux-border', 'rgba(255,255,255,.08)');
+        const down = cssVar(ddCv, '--lux-down', '#f23645');
         const padL = 64;
         const padR = 16;
         const padT = 8;
