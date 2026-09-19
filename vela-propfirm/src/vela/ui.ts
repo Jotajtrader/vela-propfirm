@@ -96,6 +96,19 @@ select.pf-native option,select.pf-native optgroup{background-color:var(--lux-bg-
 .pf-panel.pf .hint{font-size:12.5px}
 .pf-panel .pf-btn.tab{padding:11px 6px;font-size:12.5px}
 
+/* el .vela-panel que aloja Trading Panel/Centro de control (header + fondo) es chrome propio de
+   Vela sobre --vela-bg, un gris más claro que nuestro --lux-bg — se notaba como una franja/anillo
+   más clara alrededor del contenido (el header entero, y el padding de 8px de .vela-panel-body).
+   Mismo patrón que .vela-dialog.pf-dialog más abajo, pero acá no hay className propio del panel
+   para engancharlo por clase — :has() lo resuelve sin tocar el framework. */
+.vela-panel:has(.pf-panel){background:var(--lux-bg)}
+.vela-panel:has(.pf-panel) .vela-panel-header{border-bottom:1px solid var(--lux-border);color:var(--lux-fg)}
+.vela-panel:has(.pf-panel) .vela-panel-title{color:var(--lux-fg)}
+.vela-panel:has(.pf-panel) .vela-panel-close{color:var(--lux-fg-muted)}
+.vela-panel:has(.pf-panel) .vela-panel-close:hover{background:var(--lux-bg-3);color:var(--lux-fg)}
+.vela-panel:has(.pf-panel) .vela-panel-pin{color:var(--lux-fg-muted)}
+.vela-panel:has(.pf-panel) .vela-panel-pin:hover{background:var(--lux-bg-3);color:var(--lux-fg)}
+
 /* ── diálogos ────────────────────────────────────────────────────────────────── */
 .vela-dialog.pf-dialog{width:min(92vw,var(--pf-w,380px));background:var(--lux-bg);border:1px solid var(--lux-border);border-radius:14px;color:var(--lux-fg)}
 .vela-dialog.pf-dialog .vela-dialog-header{border-bottom:1px solid var(--lux-border)}

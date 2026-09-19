@@ -64,16 +64,14 @@ function mountPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement): () =
     // ── ATM ────────────────────────────────────────────────────────────────────────────
     const sAtm = section('ATM');
     const atmChips = h('div', 'pf-chips');
-    const atmRow = h('div', 'row');
-    atmRow.append(
-        atmChips,
-        btn('⚙', () => {
-            const acc = sim.activeAccount();
-            if (!acc) return ctx.toast('Seleccioná primero una cuenta (así sé para qué plantilla configurar los ATM).', 'error');
-            openAtmDialog(ctx, sim, acc.tplId);
-        }),
-    );
-    sAtm.append(atmRow, hint('"Sin ATM" es el estado por defecto: Comprar/Vender en el chart abren el panel de orden (precio/SL/TP a mano o arrastrando en el chart). Con un ATM activo, ejecutan ese preset directo.'));
+    // El gear vive DENTRO de atmChips (como en la referencia: todos los chips + el gear en una
+    // sola fila en píldora) — se re-agrega en cada paintAtm() porque replaceChildren() lo borraría.
+    const atmGear = btn('⚙', () => {
+        const acc = sim.activeAccount();
+        if (!acc) return ctx.toast('Seleccioná primero una cuenta (así sé para qué plantilla configurar los ATM).', 'error');
+        openAtmDialog(ctx, sim, acc.tplId);
+    });
+    sAtm.append(atmChips, hint('"Sin ATM" es el estado por defecto: Comprar/Vender en el chart abren el panel de orden (precio/SL/TP a mano o arrastrando en el chart). Con un ATM activo, ejecutan ese preset directo.'));
 
     // ── Posición / Órdenes ────────────────────────────────────────────────────────────
     const sPos = section('Posición abierta');
@@ -135,12 +133,14 @@ function mountPanel(ctx: WidgetContext, sim: Simulator, body: HTMLElement): () =
         const noAtm = btn('Sin ATM', () => sim.setActiveAtm(null), st.activeAtm === null ? 'on' : '');
         atmChips.appendChild(noAtm);
         const acc = sim.activeAccount();
-        if (!acc) return;
-        for (const a of sim.atmPresets(acc.tplId)) {
-            const b = btn(a.name, () => sim.setActiveAtm(a.id), a.id === st.activeAtm ? 'on' : '');
-            b.title = `${a.type.toUpperCase()} x${a.qty || 1}${a.sl ? ` · SL ${a.sl}pts` : ''}${a.tp ? ` · TP ${a.tp}pts` : ''}${a.type !== 'market' ? ` · entrada ${a.price}` : ''}`;
-            atmChips.appendChild(b);
+        if (acc) {
+            for (const a of sim.atmPresets(acc.tplId)) {
+                const b = btn(a.name, () => sim.setActiveAtm(a.id), a.id === st.activeAtm ? 'on' : '');
+                b.title = `${a.type.toUpperCase()} x${a.qty || 1}${a.sl ? ` · SL ${a.sl}pts` : ''}${a.tp ? ` · TP ${a.tp}pts` : ''}${a.type !== 'market' ? ` · entrada ${a.price}` : ''}`;
+                atmChips.appendChild(b);
+            }
         }
+        atmChips.appendChild(atmGear);
     }
 
     function paintPosition(): void {
