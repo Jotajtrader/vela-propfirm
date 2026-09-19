@@ -1,0 +1,3566 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de Fondeo · v0.1</title>
+<style>
+  :root{
+    --bg:#0b0e11; --panel:#12161c; --panel2:#171c24; --border:#252c37;
+    --fg:#d7dde5; --muted:#8892a0; --accent:#3fa9f5; --green:#26a65b; --red:#e0524f;
+    --amber:#e0a53f; --grid:#1b212b; --sel:#2b3a4d;
+  }
+  body.light{
+    --bg:#f4f5f7; --panel:#ffffff; --panel2:#eef0f3; --border:#d5d9e0;
+    --fg:#1b222c; --muted:#6b7686; --accent:#1f7fd1; --green:#188a4a; --red:#c23b36;
+    --amber:#b5790f; --grid:#e3e6ea; --sel:#dbe8f8;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12px}
+  button{font-family:inherit;font-size:11px;background:var(--panel2);color:var(--fg);
+    border:1px solid var(--border);border-radius:4px;padding:5px 9px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.on{background:var(--accent);border-color:var(--accent);color:#04121f}
+  button.buy{border-color:var(--green)} button.buy:hover{background:var(--green);color:#04120a}
+  button.sell{border-color:var(--red)} button.sell:hover{background:var(--red);color:#1a0505}
+  input,select{font-family:inherit;font-size:11px;background:var(--bg);color:var(--fg);
+    border:1px solid var(--border);border-radius:4px;padding:4px 6px;width:100%}
+  label{color:var(--muted);font-size:10px;display:block;margin-bottom:2px}
+  .row{display:flex;gap:6px;align-items:center}
+  .col{display:flex;flex-direction:column;gap:6px}
+  .app{display:flex;flex-direction:column;height:100vh}
+  header{display:flex;gap:8px;align-items:center;padding:6px 10px;background:var(--panel);
+    border-bottom:1px solid var(--border);flex-wrap:wrap}
+  header .title{font-weight:bold;color:var(--accent);letter-spacing:.5px}
+  header .spacer{flex:1}
+  header .date{color:var(--amber);font-variant-numeric:tabular-nums}
+  .body{flex:1;display:flex;min-height:0}
+  .left{flex:2;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--border)}
+  .right{width:340px;min-width:340px;display:flex;flex-direction:column;overflow-y:auto;background:var(--panel)}
+  .chartwrap{flex:1;position:relative;min-height:0}
+  canvas{display:block;width:100%;height:100%}
+  .toolbar{display:flex;gap:4px;padding:5px 8px;background:var(--panel);border-top:1px solid var(--border);
+    align-items:center;flex-wrap:wrap}
+  .toolbar .grp{display:flex;gap:3px;align-items:center;padding-right:8px;margin-right:4px;border-right:1px solid var(--border)}
+  .toolbar .grp:last-child{border-right:none}
+  .sec{border-bottom:1px solid var(--border);padding:8px 10px}
+  .sec h3{margin:0 0 7px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+  .kv{display:flex;justify-content:space-between;padding:1px 0;font-variant-numeric:tabular-nums}
+  .kv .k{color:var(--muted)} .kv .v{font-weight:bold}
+  .pos{color:var(--green)} .neg{color:var(--red)}
+  .acctlist{display:flex;flex-direction:column;gap:5px;max-height:230px;overflow-y:auto}
+  .acct{border:1px solid var(--border);border-radius:5px;padding:6px 7px;cursor:pointer;background:var(--panel2)}
+  .acct.sel{border-color:var(--accent);background:var(--sel)}
+  .acct .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+  .acct .nm{font-weight:bold}
+  .badge{font-size:9px;padding:1px 5px;border-radius:8px;text-transform:uppercase;letter-spacing:.5px}
+  .b-p1{background:#2a3340;color:#9fb4cc} .b-p2{background:#2a3a40;color:#9fccc4}
+  .b-funded{background:#1e3a28;color:#7fdCa0} .b-blown{background:#3a1e1e;color:#e88}
+  .b-paid{background:#3a3320;color:#e0c060}
+  .bars{display:flex;gap:2px;margin-top:4px}
+  .bar{flex:1;height:4px;border-radius:2px;background:#0006;overflow:hidden}
+  .bar .fill{height:100%;background:var(--accent)}
+  .mini{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .ordrow{display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-variant-numeric:tabular-nums}
+  .hint{color:var(--muted);font-size:10px;line-height:1.5}
+  .stat-net{font-size:20px;font-weight:bold;font-variant-numeric:tabular-nums}
+  .flags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+  .flag{font-size:9px;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:1px 4px}
+  #beq{width:100%;height:90px;background:var(--bg);border:1px solid var(--border);border-radius:4px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  details summary{cursor:pointer;color:var(--muted);font-size:10px;margin-top:6px}
+  .fileinput{display:none}
+  .tag{font-size:9px;color:var(--muted)}
+
+  /* --- botones de compra/venta (ahora en la barra 3, no flotantes) --- */
+  .qtybox{display:flex;align-items:center;gap:5px}
+  .qtybox input{width:48px}
+  .floatbtn{padding:8px 12px;font-weight:bold;border-radius:5px;font-size:11px;border:none;letter-spacing:.3px}
+  .floatbtn.buy{background:var(--green);color:#04120a} .floatbtn.buy:hover{filter:brightness(1.15)}
+  .floatbtn.sell{background:var(--red);color:#1a0505} .floatbtn.sell:hover{filter:brightness(1.15)}
+  .floatbtn.flat{background:var(--panel2);color:var(--fg);border:1px solid var(--border)}
+
+  /* --- alertas flotantes --- */
+  .alert-stack{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:6;
+    display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+  .alert-item{padding:8px 16px;border-radius:6px;font-weight:bold;font-size:12px;
+    box-shadow:0 3px 10px #000a;transition:opacity .3s}
+  .alert-item.blown{background:#3a1414;color:#ff9090;border:1px solid var(--red)}
+  .alert-item.paused{background:#3a2f10;color:#ffd27a;border:1px solid var(--amber)}
+
+  /* --- modal de orden --- */
+  .modal-overlay{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:50}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:8px;width:300px;overflow:hidden}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;
+    border-bottom:1px solid var(--border);font-weight:bold;font-size:13px}
+  .modal-head button{border:none;background:transparent;color:var(--muted)}
+  .modal-body{padding:12px;display:flex;flex-direction:column;gap:10px}
+  .modal-body label{margin-bottom:3px}
+  .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--border)}
+  .seg{display:flex;gap:4px}
+  .seg .segbtn{flex:1}
+  .seg .segbtn.on{background:var(--accent);border-color:var(--accent);color:#04121f}
+  .toggrow{display:flex;align-items:center;gap:8px}
+  .toggrow input[type=number]{width:64px}
+  .switch{position:relative;display:inline-block;width:32px;height:18px;flex-shrink:0}
+  .switch input{opacity:0;width:0;height:0;position:absolute}
+  .toggle-slider{position:absolute;inset:0;background:#333a42;border-radius:18px;cursor:pointer;transition:.15s}
+  .toggle-slider:before{content:"";position:absolute;height:14px;width:14px;left:2px;top:2px;
+    background:#c7cdd6;border-radius:50%;transition:.15s}
+  .switch input:checked + .toggle-slider{background:var(--accent)}
+  .switch input:checked + .toggle-slider:before{transform:translateX(14px);background:#04121f}
+  .b-paused{background:#2a2308;color:#ffb84d}
+
+  /* --- handles de resize --- */
+  .resize-handle-h{height:7px;cursor:ns-resize;background:transparent;display:none;position:relative;flex-shrink:0}
+  .resize-handle-h:hover{background:var(--accent)}
+  .resize-handle-h::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:34px;height:2px;background:var(--border);border-radius:1px}
+  .resize-handle-v{width:7px;cursor:ew-resize;background:transparent;flex-shrink:0}
+  .resize-handle-v:hover{background:var(--accent)}
+
+  /* --- barra flotante de edición de un dibujo seleccionado --- */
+  .draw-toolbar{position:absolute;z-index:6;display:none;align-items:center;gap:4px;
+    background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px 6px;
+    box-shadow:0 3px 10px #0007;flex-wrap:wrap;max-width:280px}
+  .draw-toolbar button{padding:4px 7px;font-size:10px}
+  .draw-toolbar .swatch{width:18px;height:18px;padding:0;border-radius:4px;border:2px solid transparent}
+  .draw-toolbar .swatch.on{border-color:#fff}
+  .draw-toolbar [data-width].on,.draw-toolbar [data-dash].on{background:var(--accent);border-color:var(--accent);color:#04121f}
+  .draw-toolbar .sep-v{width:1px;align-self:stretch;background:var(--border);margin:0 1px}
+
+  /* --- data box de la vela bajo el cursor --- */
+  .candle-tooltip{position:absolute;z-index:4;pointer-events:none;background:var(--panel);
+    border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:11px;
+    line-height:1.55;white-space:nowrap;box-shadow:0 3px 10px #0007}
+  .candle-tooltip .row{display:flex;justify-content:space-between;gap:14px}
+  .candle-tooltip .k{color:var(--muted)}
+
+  /* --- plantillas: picker + editor --- */
+  .acct-tabs{display:flex;gap:5px}
+
+  /* --- tracker --- */
+  .tracker-table{width:100%;border-collapse:collapse;font-size:11px}
+  .tracker-table th{text-align:left;color:var(--muted);font-weight:normal;padding:6px 8px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg)}
+  .tracker-milestone-row td{background:var(--panel2);padding:7px 8px;font-size:11px;border-bottom:1px solid var(--border);border-left:3px solid var(--accent)}
+  .tracker-table td{padding:5px 8px;border-bottom:1px solid var(--border)}
+  .tracker-table tr:hover td{background:var(--panel2)}
+  .tracker-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .tracker-stat-card{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:14px}
+  .tracker-stat-num{font-size:26px;font-weight:bold;margin:4px 0}
+  .accttab{flex:1;padding:6px 2px;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tabcount{opacity:.65;margin-left:2px}
+  .tpl-card{border:1px solid var(--border);border-radius:5px;padding:7px 8px;cursor:pointer;
+    background:var(--panel2);margin-bottom:6px}
+  .tpl-card.sel{border-color:var(--accent);background:var(--sel)}
+  .phase-row{border:1px solid var(--border);border-radius:5px;padding:8px;background:var(--panel2)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <span class="title">⧉ SIM · FONDEO</span>
+    <span class="tag">v0.3</span>
+    <div class="row" style="margin-left:10px">
+      <button id="tabTradingBtn" class="on">📈 Trading</button>
+      <button id="tabTrackerBtn">📊 Tracker</button>
+    </div>
+    <button id="btnTheme" title="Cambiar tema">🌙 Oscuro</button>
+    <div class="row">
+      <button id="btnSample">Datos demo</button>
+      <button id="btnLoadCsv">Cargar CSV</button>
+      <input type="file" id="csvFile" class="fileinput" accept=".csv,.txt">
+    </div>
+    <div class="row">
+      <label style="margin:0">Instrumento</label>
+      <select id="instr" style="width:auto">
+        <option value="NQ">NQ ($20/pt)</option>
+        <option value="MNQ">MNQ ($2/pt)</option>
+        <option value="GC">GC ($100/pt)</option>
+        <option value="MGC">MGC ($10/pt)</option>
+      </select>
+      <label style="margin:0">Comis/lado</label>
+      <input id="commIn" type="number" value="2.5" step="0.1" style="width:60px">
+      <label style="margin:0" title="Hora real de cierre del mercado — el 'día' de trading corta acá, no a medianoche">Cierre jornada</label>
+      <input id="tradingDayCutoffIn" type="time" value="17:00" style="width:auto">
+    </div>
+    <div class="row">
+      <span class="hint">Con este corte, la sesión nocturna (ej. domingo a la noche) queda del lado del día de trading siguiente — no hace falta excluirla aparte, usá "Hora de inicio/cierre" en el Modo Agente para acotar cuándo opera.</span>
+    </div>
+    <span class="spacer"></span>
+    <span class="date" id="dateLbl">—</span>
+    <div class="row">
+      <button id="btnExport">Exportar sesión</button>
+      <button id="btnImport">Importar</button>
+      <input type="file" id="sessFile" class="fileinput" accept=".json">
+    </div>
+  </header>
+
+  <div class="body" id="viewTrading">
+    <!-- ===== LEFT: chart + controls ===== -->
+    <div class="left" id="leftCol">
+      <!-- barra 1: timeframe + indicadores ... herramientas de dibujo -->
+      <div class="toolbar">
+        <div class="grp" id="tfGroup"><span class="mini">TF</span></div>
+        <div class="grp"><button id="btnIndicators">📈 Indicadores</button></div>
+        <div style="flex:1"></div>
+        <div class="grp">
+          <button class="tool on" data-tool="cursor">⤢ Cursor</button>
+          <button class="tool" data-tool="trend">╱ Tendencia</button>
+          <button class="tool" data-tool="ray">→ Rayo</button>
+          <button class="tool" data-tool="hline">— Horizontal</button>
+          <button class="tool" data-tool="rect">▭ Rect</button>
+          <button class="tool" data-tool="fib">𝑓 Fibo</button>
+        </div>
+        <div class="grp">
+          <button id="btnDelDraw">🗑 Borrar sel.</button>
+          <button id="btnClearDraw">Limpiar todo</button>
+        </div>
+      </div>
+
+      <!-- barra 3: presets ATM (selección rápida) ... compra/venta -->
+      <div class="toolbar">
+        <div class="grp" id="atmGroup">
+          <span class="mini">ATM</span>
+          <span id="atmChips" style="display:flex;gap:4px"></span>
+          <button id="btnConfigAtm">⚙ Configurar ATM</button>
+        </div>
+        <div style="flex:1"></div>
+        <div class="grp">
+          <div class="qtybox"><label style="margin:0">Qty</label><input id="qtyIn" type="number" value="1" min="1" step="1"></div>
+          <button id="floatBuy" class="floatbtn buy">▲ COMPRAR</button>
+          <button id="floatSell" class="floatbtn sell">▼ VENDER</button>
+          <button id="floatFlat" class="floatbtn flat">FLATTEN</button>
+        </div>
+      </div>
+
+      <div class="chartwrap">
+        <canvas id="chart"></canvas>
+        <div id="alertStack" class="alert-stack"></div>
+        <div id="candleTooltip" class="candle-tooltip" style="display:none"></div>
+        <div id="drawToolbar" class="draw-toolbar" style="display:none">
+          <button class="swatch" data-color="#c0a0f0" style="background:#c0a0f0" title="Violeta"></button>
+          <button class="swatch" data-color="#3fa9f5" style="background:#3fa9f5" title="Azul"></button>
+          <button class="swatch" data-color="#26a65b" style="background:#26a65b" title="Verde"></button>
+          <button class="swatch" data-color="#e0524f" style="background:#e0524f" title="Rojo"></button>
+          <button class="swatch" data-color="#e0a53f" style="background:#e0a53f" title="Ámbar"></button>
+          <button class="swatch" data-color="#ffffff" style="background:#ffffff" title="Blanco"></button>
+          <div class="sep-v"></div>
+          <button data-width="1" title="Fino">Fino</button>
+          <button data-width="2" title="Medio">Medio</button>
+          <button data-width="3" title="Grueso">Grueso</button>
+          <div class="sep-v"></div>
+          <button data-dash="solid" title="Sólido">Sólido</button>
+          <button data-dash="dashed" title="Punteado">Punteado</button>
+          <button data-dash="dotted" title="Puntos">Puntos</button>
+          <div class="sep-v"></div>
+          <button id="dtLock" title="Bloquear/desbloquear">🔓</button>
+          <button id="dtDelete" title="Borrar">🗑</button>
+        </div>
+      </div>
+      <div id="rsiResizeHandle" class="resize-handle-h" title="Arrastrá para cambiar el alto del panel"></div>
+      <canvas id="rsiChart" style="display:none;height:90px;border-top:1px solid var(--border);background:var(--bg)"></canvas>
+
+      <!-- barra de playback: ir a fecha/hora ... controles de reproducción -->
+      <div class="toolbar">
+        <div class="grp">
+          <input type="datetime-local" id="gotoInput" style="width:172px">
+          <button id="btnGoto">⏩ Ir a fecha/hora</button>
+          <button id="btnNextDaySameTime" title="Salta al día siguiente, a la misma hora en la que está parado el replay ahora">📆 Día siguiente, misma hora</button>
+        </div>
+        <div style="flex:1"></div>
+        <div class="grp">
+          <button id="btnPlay">▶ Play</button>
+          <button id="btnStep">Step ▸</button>
+          <button id="btnSkipDay">⏭ Saltar día</button>
+        </div>
+        <div class="grp">
+          <span class="mini">Velocidad</span>
+          <input id="speedSlider" type="range" min="0" max="6" step="1" value="2" style="width:120px">
+          <span class="mini" id="speedLbl">—</span>
+        </div>
+        <div class="grp">
+          <span class="mini" id="progLbl">bar 0 / 0</span>
+        </div>
+        <div class="grp">
+          <button id="btnRandomIntrabar" title="Simula un camino aleatorio de precio dentro de cada barra (como ticks) para resolver sin ambigüedad qué nivel (SL/TP/drawdown/límite diario) se toca primero. Sin esto, se usa una regla conservadora basada en cercanía a la entrada.">🎲 Intrabar: OFF</button>
+          <button id="btnFastForward" title="Corre toda la simulación de una sin dibujar nada en pantalla hasta el final (mucho más rápido) — ideal para backtests largos del agente.">⏩⏩ Modo rápido</button>
+          <span class="mini" id="fastForwardStatus" style="display:none"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="colResizeHandle" class="resize-handle-v" title="Arrastrá para cambiar el ancho"></div>
+
+    <!-- ===== RIGHT: accounts / position / stats ===== -->
+    <div class="right">
+      <div class="sec">
+        <h3>Negocio de cuentas</h3>
+        <div class="kv"><span class="k">P&L NETO</span><span class="v stat-net" id="netPnl">$0</span></div>
+        <div class="grid3" style="margin-top:6px">
+          <div class="kv col"><span class="k">Compradas</span><span class="v" id="stBought">0</span></div>
+          <div class="kv col"><span class="k">Fondeadas</span><span class="v" id="stFunded">0</span></div>
+          <div class="kv col"><span class="k">Quemadas</span><span class="v" id="stBlown">0</span></div>
+        </div>
+        <div class="grid2" style="margin-top:4px">
+          <div class="kv"><span class="k">Gastado</span><span class="v neg" id="stCost">$0</span></div>
+          <div class="kv"><span class="k">Cobrado</span><span class="v pos" id="stPayout">$0</span></div>
+        </div>
+        <canvas id="beq" style="margin-top:8px"></canvas>
+        <div class="kv" style="margin-top:6px"><span class="k">Equity trading (paralelo)</span><span class="v" id="stTrade">$0</span></div>
+      </div>
+
+      <div class="sec">
+        <h3>Cuentas</h3>
+        <div class="acct-tabs" id="simModeTabs" style="margin-bottom:8px" title="Qué parte del ciclo nos interesa medir">
+          <button class="accttab" data-mode="challenge">Modo Challenge</button>
+          <button class="accttab" data-mode="cushion">Modo Colchón</button>
+          <button class="accttab on" data-mode="full">Modo Completo</button>
+        </div>
+        <div class="hint" id="simModeHint" style="margin-bottom:8px"></div>
+        <button id="btnOpenBuy" style="width:100%">+ Comprar cuentas</button>
+        <div id="mainAcctTabs" class="acct-tabs" style="margin-top:8px">
+          <button class="accttab on" data-cat="challenge">Challenge <span class="tabcount" id="tabCountChallenge">0</span></button>
+          <button class="accttab" data-cat="funded">Fondeadas <span class="tabcount" id="tabCountFunded">0</span></button>
+          <button class="accttab" data-cat="paid">Cobradas <span class="tabcount" id="tabCountPaid">0</span></button>
+          <button class="accttab" data-cat="blown">Quemadas <span class="tabcount" id="tabCountBlown">0</span></button>
+        </div>
+        <div class="acctlist" id="acctList" style="margin-top:8px"></div>
+      </div>
+
+      <div class="sec">
+        <h3>Posición abierta</h3>
+        <div id="posBox"><div class="hint">Sin posición. Seleccioná una cuenta y operá.</div></div>
+      </div>
+
+      <div class="sec">
+        <h3>Órdenes de trabajo</h3>
+        <div id="ordBox"><div class="hint">Ninguna.</div></div>
+      </div>
+
+      <div class="sec">
+        <h3>Ayuda rápida</h3>
+        <div class="hint">
+          Formato CSV: <code>datetime,open,high,low,close[,volume]</code> — 1 fila por barra,
+          datetime ISO o <code>YYYY-MM-DD HH:MM</code>.<br>
+          Teclas: <b>Espacio</b> play/pause · <b>→</b> step · <b>D</b> saltar día · <b>Esc</b> cancelar dibujo · <b>Supr</b> borrar dibujo.<br>
+          Comprar/Vender (sobre el chart) abren un panel: Market/Limit/Stop + SL/TP opcional (toggle). El trade se imputa a la <b>cuenta seleccionada</b>. Una posición abierta a la vez (v0.2).<br>
+          Si el precio toca el <b>drawdown máximo</b> → la cuenta se <b>quema</b>. Si toca el <b>límite diario</b> → la cuenta queda <b>pausada</b> el resto del día y se reactiva sola al <b>Saltar día</b>.<br>
+          Zoom: <b>rueda del mouse</b> sobre el chart para el eje de tiempo, o arrastrá directamente sobre el <b>eje de precio</b> (derecha) o el <b>eje de tiempo</b> (abajo) para achicar/ampliar cada uno por separado. <b>Doble click</b> sobre un eje lo resetea.
+        </div>
+        <div class="row" style="margin-top:10px;align-items:center;border-top:1px solid var(--border);padding-top:10px">
+          <label class="switch"><input type="checkbox" id="agentToggle"><span class="toggle-slider"></span></label>
+          <span style="flex:1">🤖 Modo Agente</span>
+          <button id="btnAgentConfig">⚙ Configurar</button>
+          <button id="btnAgentReset" disabled title="Vuelve todo (cuentas, ledger, replay) al punto justo antes de la primera compra desde que cargaste datos o desde el último Reset — sirve tanto para una corrida del agente como para pruebas manuales">🔄 Reset</button>
+        </div>
+        <div class="mini" id="agentStatus" style="margin-top:4px;color:var(--muted)"></div>
+      </div>
+
+      <!-- ===== ORDER MODAL ===== -->
+      <div id="orderModalOverlay" class="modal-overlay" style="display:none">
+        <div class="modal">
+          <div class="modal-head">
+            <span id="modalTitle">Comprar</span>
+            <button id="modalClose">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="seg" id="typeSeg">
+              <button class="segbtn on" data-type="market">Market</button>
+              <button class="segbtn" data-type="limit">Limit</button>
+              <button class="segbtn" data-type="stop">Stop</button>
+            </div>
+            <div id="priceRow" style="display:none">
+              <label>Precio de la orden</label>
+              <input id="modalPrice" type="number" step="0.25">
+            </div>
+            <div><label>Cantidad</label><input id="modalQty" type="number" min="1" step="1" value="1"></div>
+            <div class="toggrow">
+              <label class="switch"><input type="checkbox" id="modalSlOn"><span class="toggle-slider"></span></label>
+              <span style="flex:1">Stop Loss</span>
+              <input id="modalSlVal" type="number" step="1" placeholder="pts" disabled>
+            </div>
+            <div class="toggrow">
+              <label class="switch"><input type="checkbox" id="modalTpOn"><span class="toggle-slider"></span></label>
+              <span style="flex:1">Take Profit</span>
+              <input id="modalTpVal" type="number" step="1" placeholder="pts" disabled>
+            </div>
+            <div class="mini" id="modalAcctLbl" style="margin-top:2px"></div>
+          </div>
+          <div class="modal-foot">
+            <button id="modalCancel">Cancelar</button>
+            <button id="modalConfirm" class="on">Confirmar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== BUY MODAL (picker de plantillas) ===== -->
+      <div id="buyModalOverlay" class="modal-overlay" style="display:none">
+        <div class="modal" style="width:360px">
+          <div class="modal-head"><span>Comprar cuentas</span><button id="buyModalClose">✕</button></div>
+          <div class="modal-body">
+            <div id="companyPicker" class="acct-tabs" style="margin-bottom:8px"></div>
+            <div id="tplPicker" style="max-height:280px;overflow-y:auto"></div>
+            <div class="row">
+              <div style="flex:1"><label>Cantidad a comprar</label><input id="buyQty" type="number" min="1" step="1" value="1"></div>
+              <div class="col" style="justify-content:flex-end"><button id="btnNewTpl">+ Nueva plantilla</button></div>
+            </div>
+            <div class="row">
+              <button id="btnEditTpl" style="flex:1">✎ Editar seleccionada</button>
+              <button id="btnAtmForTpl" style="flex:1">⚙ ATM de esta plantilla</button>
+              <button id="btnDelTpl" style="flex:1">🗑 Eliminar</button>
+            </div>
+            <div id="tplDelMsg" class="mini" style="min-height:14px"></div>
+          </div>
+          <div class="modal-foot">
+            <button id="buyModalCancel">Cancelar</button>
+            <button id="buyModalConfirm" class="on">Comprar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ATM CONFIG MODAL ===== -->
+      <div id="atmModalOverlay" class="modal-overlay" style="display:none">
+        <div class="modal" style="width:340px">
+          <div class="modal-head"><span>Configurar ATM</span><button id="atmModalClose">✕</button></div>
+          <div class="mini" id="atmModalTplLabel" style="padding:6px 14px 0;color:var(--accent)"></div>
+          <div class="modal-body">
+            <div id="atmList" style="max-height:160px;overflow-y:auto"></div>
+            <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:2px">
+              <b class="mini" style="color:var(--accent)">NUEVO / EDITAR PRESET</b>
+              <div style="margin-top:6px"><label>Nombre</label><input id="atm_name" type="text" placeholder="ej: Scalp rápido"></div>
+              <div style="margin-top:6px"><label>Contratos</label><input id="atm_qty" type="number" step="1" min="1" value="1"></div>
+              <div class="seg" id="atmTypeSeg" style="margin-top:6px">
+                <button class="segbtn on" data-type="market">Market</button>
+                <button class="segbtn" data-type="limit">Limit</button>
+                <button class="segbtn" data-type="stop">Stop</button>
+              </div>
+              <div id="atmPriceRow" style="display:none;margin-top:6px">
+                <label>Precio de entrada</label><input id="atm_price" type="number" step="0.25">
+              </div>
+              <div class="grid2" style="margin-top:6px">
+                <div><label>Stop Loss (pts, vacío=off)</label><input id="atm_sl" type="number" step="1"></div>
+                <div><label>Take Profit (pts, vacío=off)</label><input id="atm_tp" type="number" step="1"></div>
+              </div>
+              <button id="btnSaveAtm" class="on" style="width:100%;margin-top:8px">💾 Guardar preset</button>
+            </div>
+          </div>
+          <div class="modal-foot"><button id="atmModalDone">Listo</button></div>
+        </div>
+      </div>
+
+      <!-- ===== AGENT MODAL ===== -->
+      <div id="agentModalOverlay" class="modal-overlay" style="display:none">
+        <div class="modal" style="width:380px;max-height:88vh;overflow-y:auto">
+          <div class="modal-head"><span>🤖 Configurar Modo Agente</span><button id="agentModalClose">✕</button></div>
+          <div class="modal-body">
+            <div style="border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:6px">
+              <b class="mini" style="color:var(--accent)">QUÉ CHALLENGE COMPRA ESTA CORRIDA</b>
+              <div class="hint" style="margin:2px 0 6px">Por ahora el agente compra un solo tipo por corrida (no mezcla challenges distintos).</div>
+              <div class="grid2" style="margin-top:6px">
+                <div><label>Empresa</label><select id="ag_company"></select></div>
+                <div><label>Challenge</label><select id="ag_template"></select></div>
+              </div>
+            </div>
+            <div class="grid2">
+              <div><label>Desde</label><input type="date" id="ag_from"></div>
+              <div><label>Hasta</label><input type="date" id="ag_to"></div>
+            </div>
+            <div class="grid2">
+              <div><label>Hora de inicio diaria (opcional)</label><input type="time" id="ag_starttime"></div>
+              <div><label>Hora de cierre diaria (opcional)</label><input type="time" id="ag_endtime"></div>
+            </div>
+            <div class="hint" style="margin-top:2px">Con ambas cargadas, el agente solo opera dentro de esa ventana horaria todos los días — no hace falta excluir fin de semana aparte: una sesión que arranca fuera de la ventana (ej. domingo a la noche) simplemente nunca entra.</div>
+
+            <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:6px">
+              <b class="mini" style="color:var(--accent)">CUPOS</b>
+              <div class="grid3" style="margin-top:6px">
+                <div><label>Challenge a mantener</label><input type="number" id="ag_challengetarget" min="0" step="1" value="5"></div>
+                <div><label>Máx. fondeadas activas</label><input type="number" id="ag_maxfunded" min="0" step="1" value="5"></div>
+                <div><label>Máx. en espera</label><input type="number" id="ag_maxwaiting" min="0" step="1" value="3"></div>
+              </div>
+            </div>
+
+            <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:6px">
+              <b class="mini" style="color:var(--green)">OPERATIVA (SL y TP automáticos)</b>
+              <div class="hint" style="margin:2px 0 6px">El agente no usa presets ATM: en cada trade arriesga lo que la cuenta tenga disponible ese día (lo menor entre el límite diario y el drawdown restante) y apunta a lo que le falte del objetivo. Solo hace falta definir el tamaño de la posición.</div>
+              <div><label>Contratos por operación</label><input type="number" id="ag_qty" min="1" step="1" value="2"></div>
+            </div>
+
+            <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:6px">
+              <b class="mini" style="color:var(--muted)">PAUSA POR PROFIT DIARIO $ (0 = sin freno)</b>
+              <div class="grid3" style="margin-top:6px">
+                <div><label>Challenge</label><input type="number" id="ag_profit_challenge" step="10" value="0"></div>
+                <div><label>Fondeada día 1</label><input type="number" id="ag_profit_fday1" step="10" value="0"></div>
+                <div><label>Fondeada día 2+</label><input type="number" id="ag_profit_frest" step="10" value="0"></div>
+              </div>
+            </div>
+
+            <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:6px">
+              <b class="mini" style="color:var(--muted)">ESPERA ENTRE TRADES (minutos, rango aleatorio)</b>
+              <div class="grid2" style="margin-top:6px">
+                <div><label>Mínimo</label><input type="number" id="ag_waitmin" min="0" step="1" value="5"></div>
+                <div><label>Máximo</label><input type="number" id="ag_waitmax" min="0" step="1" value="30"></div>
+              </div>
+            </div>
+
+          </div>
+          <div class="modal-foot">
+            <button id="agentModalCancel">Cancelar</button>
+            <button id="agentModalApply" class="on">Aplicar y activar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== INDICATORS MODAL ===== -->
+      <div id="indModalOverlay" class="modal-overlay" style="display:none">
+        <div class="modal" style="width:320px">
+          <div class="modal-head"><span>Indicadores</span><button id="indModalClose">✕</button></div>
+          <div class="modal-body">
+            <div class="toggrow">
+              <label class="switch"><input type="checkbox" id="ind_sma_on"><span class="toggle-slider"></span></label>
+              <span style="flex:1">Media simple (SMA)</span>
+              <input id="ind_sma_period" type="number" step="1" min="2" style="width:56px" value="20">
+            </div>
+            <div class="toggrow">
+              <label class="switch"><input type="checkbox" id="ind_boll_on"><span class="toggle-slider"></span></label>
+              <span style="flex:1">Bandas de Bollinger</span>
+            </div>
+            <div class="grid2">
+              <div><label>Período</label><input id="ind_boll_period" type="number" step="1" min="2" value="20"></div>
+              <div><label>Desv. estándar</label><input id="ind_boll_mult" type="number" step="0.5" value="2"></div>
+            </div>
+            <div class="toggrow" style="margin-top:4px">
+              <label class="switch"><input type="checkbox" id="ind_rsi_on"><span class="toggle-slider"></span></label>
+              <span style="flex:1">RSI</span>
+              <input id="ind_rsi_period" type="number" step="1" min="2" style="width:56px" value="14">
+            </div>
+            <div class="hint">SMA y Bollinger se calculan sobre el timeframe que estés mirando en el chart.</div>
+          </div>
+          <div class="modal-foot">
+            <button id="indModalApply" class="on">Aplicar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== TEMPLATE EDITOR MODAL ===== -->
+      <div id="tplModalOverlay" class="modal-overlay" style="display:none">
+        <div class="modal" style="width:430px;max-height:88vh;overflow-y:auto">
+          <div class="modal-head"><span id="tplModalTitle">Nueva plantilla</span><button id="tplModalClose">✕</button></div>
+          <div class="modal-body">
+            <div class="grid2">
+              <div><label>Nombre</label><input id="tf_name" type="text"></div>
+              <div><label>Empresa</label><input id="tf_company" type="text" placeholder="ej: Lucid" list="tf_company_list"><datalist id="tf_company_list"></datalist></div>
+            </div>
+            <div class="grid2">
+              <div><label>Costo $</label><input id="tf_cost" type="number" step="1"></div>
+              <div><label>Tamaño de cuenta $</label><input id="tf_size" type="number" step="1000"></div>
+            </div>
+            <div class="grid2">
+              <div><label>Costo de activación $<span class="hint"> — se cobra al fondear</span></label><input id="tf_actcost" type="number" step="1"></div>
+              <div></div>
+            </div>
+
+            <div class="toggrow" style="margin-top:2px">
+              <label class="switch"><input type="checkbox" id="tf_samedir"><span class="toggle-slider"></span></label>
+              <span style="flex:1">Permitir mismo sentido (long/long o short/short) en simultáneo entre cuentas de esta plantilla</span>
+            </div>
+            <div class="hint" style="margin:-4px 0 4px">El hedging (sentidos opuestos entre cuentas) nunca está permitido, sea cual sea este valor.</div>
+
+            <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:2px">
+              <div class="row" style="justify-content:space-between">
+                <b class="mini" style="color:var(--accent)">FASES DE CHALLENGE</b>
+                <button id="btnAddPhase">+ Agregar fase</button>
+              </div>
+              <div id="phasesBox" class="col" style="gap:8px;margin-top:6px"></div>
+            </div>
+
+            <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+              <b class="mini" style="color:var(--green)">REGLAS EN FONDEADA</b>
+              <div id="fundedBox" class="phase-row" style="margin-top:6px"></div>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button id="tplModalCancel">Cancelar</button>
+            <button id="tplModalSave" class="on">Guardar plantilla</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TRACKER VIEW ===== -->
+  <div class="body" id="viewTracker" style="display:none">
+    <div class="left" style="flex:0 0 280px; max-width:280px; border-right:1px solid var(--border); overflow-y:auto; padding:10px">
+      <h3 style="margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">Cuentas de la corrida</h3>
+      <div id="trackerCatTabs" class="acct-tabs" style="margin-bottom:8px">
+        <button class="accttab on" data-cat="challenge">Challenge <span class="tabcount" id="trkCountChallenge">0</span></button>
+        <button class="accttab" data-cat="funded">Fondeadas <span class="tabcount" id="trkCountFunded">0</span></button>
+        <button class="accttab" data-cat="paid">Cobradas <span class="tabcount" id="trkCountPaid">0</span></button>
+        <button class="accttab" data-cat="blown">Quemadas <span class="tabcount" id="trkCountBlown">0</span></button>
+      </div>
+      <div id="trackerAcctList" class="acctlist"></div>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0">
+      <div class="toolbar" id="trackerTabsBar">
+        <div class="grp">
+          <button class="trackertab on" data-sub="log">📋 Registro</button>
+          <button class="trackertab" data-sub="equity">📉 Equity</button>
+        </div>
+      </div>
+      <div style="flex:1; overflow-y:auto; padding:14px; position:relative">
+        <div id="trackerPaneLog"></div>
+        <div id="trackerPaneEquity" style="display:none">
+          <canvas id="trackerEquityCanvas" style="width:100%;height:340px;background:var(--bg);border:1px solid var(--border);border-radius:6px"></canvas>
+          <div id="trackerEquityTooltip" class="candle-tooltip" style="display:none;position:absolute"></div>
+          <div class="mini" style="margin:10px 0 4px;color:var(--muted)">DRAWDOWN (profundidad bajo el pico previo)</div>
+          <canvas id="trackerDrawdownCanvas" style="width:100%;height:160px;background:var(--bg);border:1px solid var(--border);border-radius:6px"></canvas>
+          <div id="trackerPaneStats" style="margin-top:14px"></div>
+        </div>
+        <div id="trackerPaneSimple" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+/* ============================================================
+   ESTADO GLOBAL
+   ============================================================ */
+const PV = {NQ:20, MNQ:2, GC:100, MGC:10};
+
+const state = {
+  bars: [],            // {t:Date, o,h,l,c,v, day:'YYYY-MM-DD'}
+  idx: -1,             // índice del último bar revelado
+  playing:false, timer:null, speed:100,
+  view: 140,           // barras visibles (zoom del eje de tiempo)
+  yScale: 1,           // factor de zoom manual del eje de precio (1 = auto-fit)
+  axisDrag: null,      // {type:'x'|'y', start...} mientras se arrastra un eje
+  nativeMinutes: 1,    // resolución detectada de los datos cargados
+  tradingDayCutoff: {h:17, m:0}, // hora de cierre real de la jornada — el "día" de trading corta acá,
+                                  // no a medianoche (así una posición nunca se fuerza a cerrar en plena
+                                  // sesión nocturna activa, solo en el cierre real del mercado)
+  chartTF: 1,          // timeframe que se está mostrando en el chart (puede ser mayor al nativo)
+  indicators: { sma:{on:false, period:20}, boll:{on:false, period:20, mult:2}, rsi:{on:false, period:14} },
+  atmPresetsByTpl: {}, activeAtm: null, atmEditingId: null, atmIdCounter: 1, atmEditingTplId: null,
+  randomIntrabar: false,  // simula un camino de "ticks" aleatorio dentro de cada barra para resolver SL/TP/DD/daily sin ambigüedad
+  fastForward: { running:false, cancelled:false },
+  suppressRender: false, // mientras está en true, renderAll() no pinta nada — lo usan el modo rápido y
+                          // los saltos internos, porque closePosition/buyAccount llaman renderAll por su
+                          // cuenta y en una corrida larga eso reconstruye el DOM miles de veces (era la
+                          // causa de que la pestaña se congelara progresivamente).
+  acctFilter: 'challenge',  // pestaña activa del panel de cuentas: challenge | funded | blown
+  agent: {
+    active:false,
+    dateFrom:null, dateTo:null, startTimeOfDay:null, endTimeOfDay:null,
+    tplId:null, // qué challenge compra el agente en esta corrida (por ahora, uno solo, no mezcla)
+    challengeTarget:5, maxFundedActive:5, maxWaiting:3,
+    qty:2, // tamaño de posición; SL y TP los calcula solo el agente (agentAdaptiveOrder)
+    profitPauseChallenge:0, profitPauseFundedDay1:0, profitPauseFundedRest:0,
+    waitMinMin:5, waitMaxMin:30,
+    // estado de ejecución (no configuración):
+    lastDay:null, queue:[], queueIdx:0, nextTradeAt:null, finishedToday:new Set(), fundedDayCounts:{}, fundedGoalReached:{},
+  },
+  agentSnapshot:null,  // foto del estado justo antes de arrancar la corrida del agente, para el botón Reset
+  activeTab:'trading', trackerSubTab:'log', trackerSelAcct:null, trackerEquityProj:null, trackerCatFilter:'challenge',
+  simMode:'full', // 'challenge' | 'cushion' | 'full' — qué parte del ciclo nos interesa medir
+  instr:'NQ', comm:2.5,
+  tool:'cursor',
+  drawings:[],         // {id,type,a:{i,p},b:{i,p},color}
+  selDraw:null, drawTmp:null, dragging:null,
+  accounts:[],         // instancias — TODAS, historial completo (para el Tracker); crece sin límite
+  agentLiveAccounts:[],// subconjunto chico: solo las NO terminales (no quemadas, no cobradas-y-cerradas).
+                        // El agente escanea SIEMPRE esta lista, nunca el historial completo — si no,
+                        // el costo por barra crece con TODA la vida de la corrida y termina "frizando"
+                        // la pestaña en backtests largos o corridas encadenadas sin usar Reset.
+  templates:[],        // plantillas
+  selTpl:null, selAcct:null,
+  // la posición ahora vive en cada cuenta (acc.position), no acá — ver newAccountInstance
+  orders:[],           // {id, accId, side, type:'limit'|'stop', px, qty, sl, tp}
+  ledger:[],           // {type:'cost'|'payout', amount, day, acc}
+  tradingPnl:0,
+  dayIndex:0,
+  mouse:{x:0,y:0,in:false},
+  proj:null,           // proyección actual (para hit-testing)
+  oid:1, did:1, aid:1, tid:100,
+};
+
+/* ============================================================
+   PLANTILLAS DE CUENTA
+   ============================================================ */
+// devuelve la lista de ATM de UNA plantilla puntual — cada challenge (y por lo tanto cada empresa,
+// ya que la empresa es un campo de la plantilla) tiene su propia lista, no una global compartida.
+function atmPresetsFor(tplId){
+  if(!tplId) return [];
+  if(!state.atmPresetsByTpl[tplId]) state.atmPresetsByTpl[tplId]=[];
+  return state.atmPresetsByTpl[tplId];
+}
+function defaultAtmPresets(){
+  return {
+    t1: [
+      { id:'atm1', name:'Challenge 25k', type:'market', qty:2, sl:12.5, tp:16,  price:null },
+      { id:'atm2', name:'Colchón 25k',   type:'market', qty:2, sl:12.5, tp:75,  price:null },
+      { id:'atm3', name:'Extracción 25k',type:'market', qty:2, sl:12.5, tp:3,   price:null },
+    ],
+    t2: [
+      // SL=50pts en las 3 = exactamente el DD (50*2*20=$2000) — cualquier trade perdedor quema la
+      // cuenta directo, no hay margen para un "día 2" de reintento (por eso no hay preset de retest acá).
+      { id:'atm4', name:'Challenge 50k sin DLL',   type:'market', qty:2, sl:50, tp:38,  price:null },
+      { id:'atm5', name:'Colchón 50k sin DLL',     type:'market', qty:2, sl:50, tp:101, price:null },
+      { id:'atm6', name:'Extracción 50k sin DLL',  type:'market', qty:2, sl:50, tp:4,   price:null },
+    ],
+  };
+}
+function defaultTemplates(){
+  return [
+    { id:'t1', name:'Lucid 25k DLL flex', company:'Lucid', cost:50, size:25000, activationCost:0,
+      allowSameDirectionMultiAccount:true,
+      phases:[
+        { target:1250, ddAmount:1000, ddType:'eod-trailing', lockAtStart:false, dailyLoss:600,
+          consistencyOn:true, consistencyPct:50 }
+      ],
+      funded:{
+        ddAmount:1000, ddType:'eod-trailing', lockAtStart:true, dailyLoss:600,
+        payoutPct:50, payoutCap:1000, closeOnPayout:false,
+        consistencyOn:false, consistencyPct:50,
+        bufferOn:false, buffer:1100,
+        capScheduleOn:false, capSchedule:[1500,2000,2500,3000],
+        splitPct:90,
+        maxPayouts:4,
+        minDays:5, minDayProfit:100, minCycleSum:0
+      } },
+    // OJO costo/activación: no me los pasaste, los estimé escalando el de 25k ($50->~$100). Ajustalos
+    // en "✎ Editar seleccionada" si tienen otro valor real.
+    { id:'t2', name:'Lucid 50k sin DLL', company:'Lucid', cost:100, size:50000, activationCost:0,
+      allowSameDirectionMultiAccount:true,
+      phases:[
+        { target:3000, ddAmount:2000, ddType:'eod-trailing', lockAtStart:true, dailyLoss:0,
+          consistencyOn:true, consistencyPct:50 }
+      ],
+      funded:{
+        ddAmount:2000, ddType:'eod-trailing', lockAtStart:true, dailyLoss:0,
+        payoutPct:50, payoutCap:2000, closeOnPayout:false,
+        consistencyOn:false, consistencyPct:50,
+        bufferOn:true, buffer:100,
+        capScheduleOn:false, capSchedule:[1500,2000,2500,3000],
+        splitPct:90,
+        maxPayouts:4,
+        minDays:5, minDayProfit:150, minCycleSum:0
+      } },
+  ];
+}
+
+/* ============================================================
+   MOTOR DE REGLAS PROP (funciones puras sobre cuenta+plantilla)
+   ============================================================ */
+function tplOf(acc){ return state.templates.find(t=>t.id===acc.tplId); }
+
+// evalúa si `acc` puede abrir una posición en `side`, mirando las demás cuentas DE LA MISMA PLANTILLA:
+// - hedging (sentido opuesto en otra cuenta) nunca está permitido.
+// - mismo sentido en simultáneo depende del toggle allowSameDirectionMultiAccount de la plantilla.
+function canOpenPosition(acc, side){
+  const tpl=tplOf(acc); if(!tpl) return {ok:true};
+  for(const other of state.agentLiveAccounts){
+    if(other.id===acc.id || !other.position || other.tplId!==tpl.id) continue;
+    if(other.position.side!==side) return {ok:false, reason:'hedge', other};
+    if(!tpl.allowSameDirectionMultiAccount) return {ok:false, reason:'samedirection', other};
+  }
+  return {ok:true};
+}
+
+// resuelve el set de reglas activo para el estado actual de la cuenta:
+// fase de challenge en curso, o reglas de fondeada.
+function rulesFor(acc,tpl){
+  if(!tpl) return null;
+  if(acc.status==='challenge') return tpl.phases[acc.phaseIdx] || null;
+  if(acc.status==='funded') return tpl.funded;
+  return null; // blown/paid/paused (paused resuelve via prevStatus/prevPhaseIdx cuando hace falta)
+}
+
+function thresholdOf(acc,rules){
+  if(!rules) return -Infinity;
+  const base = acc.stageStartBalance;
+  if(rules.ddType==='static') return base - rules.ddAmount;
+  let thr = acc.peakBalance - rules.ddAmount;      // trailing / eod-trailing
+  if(rules.lockAtStart) thr = Math.min(thr, base);
+  return thr;
+}
+function targetBalOf(acc,rules){ return acc.stageStartBalance + rules.target; }
+
+function newAccountInstance(tpl, day, skipToFunded){
+  const acc = {
+    id:'a'+(state.aid++), tplId:tpl.id, name:tpl.name.split(' ')[0]+' #'+state.aid,
+    status:'challenge', phaseIdx:0,
+    startBalance: tpl.size, balance: tpl.size, peakBalance: tpl.size,
+    stageStartBalance: tpl.size,
+    dayStartBalance: tpl.size, dailyPnl:0, payouts:0, createdDay:day,
+    payoutCount:0, dayProfits:[], cycleValidDays:0, cycleProfitSum:0,
+    activated:false,  // pasó el challenge pero todavía no activó la cuenta fondeada (botón "Fondear")
+    position:null,  // {side:1/-1, qty, entry, entryIdx, sl, tp} — una posición abierta por cuenta
+    everFunded:false,        // permanente: llegó a fondearse alguna vez (para la tasa de aprobación del tracker)
+    everReachedCushion:false,// permanente: logró el objetivo de "día 1" alguna vez (para la tasa de colchón del tracker)
+    tradeLog:[],              // historial de operaciones cerradas: {entryTime, exitTime, side, qty, atmName, entry, exit, pnl, reason, balance}
+    milestones:[],             // hitos: {type:'approved'|'cushion'|'payout', time, balance, ...extra}
+    fundedCushionDeficit:0,    // arrastre de pérdidas de días anteriores del intento de colchón actual
+                                // (día1/reintento) — se suma al objetivo del día siguiente. Se resetea
+                                // al lograr el colchón o al reactivar la cuenta.
+  };
+  if(skipToFunded){
+    // Modo Colchón, compra MANUAL: salta directo a fondeada activada — a mano no tiene sentido tener
+    // que operar un challenge entero primero cuando lo único que se quiere probar es el colchón.
+    // El agente en este mismo modo SIGUE arrancando por el challenge (eso ya funciona como se espera).
+    acc.status='funded';
+    acc.phaseIdx=tpl.phases.length;
+    acc.activated=true;
+    acc.everFunded=true;
+    acc.milestones.push({type:'approved', time: curBar()? curBar().t.toISOString() : null, balance: acc.balance});
+  }
+  return acc;
+}
+
+// mejor día individual <= consistencyPct% del total acumulado en la ventana activa
+// (challenge: desde el inicio de la fase actual; fondeada: desde el último retiro)
+function consistencyOk(rules, dayProfitsSoFar, currentDayPnl){
+  if(!rules.consistencyOn) return true;
+  const days=dayProfitsSoFar.concat([currentDayPnl]);
+  const total=days.reduce((s,v)=>s+v,0);
+  if(total<=0) return true; // sin profit neto todavía, nada que violar
+  const best=Math.max(...days);
+  return best <= (rules.consistencyPct/100)*total + 1e-6;
+}
+
+function checkAccount(acc,tpl){
+  if(acc.status==='blown'||acc.status==='paid') return;
+  const rules=rulesFor(acc,tpl); if(!rules) return;
+  const thr = thresholdOf(acc,rules);
+  if(acc.balance <= thr + 1e-6){ acc.status='blown'; return; }
+  if(rules.dailyLoss>0 && acc.dailyPnl <= -rules.dailyLoss + 1e-6){
+    if(acc.status!=='paused'){ acc.prevStatus=acc.status; acc.prevPhaseIdx=acc.phaseIdx; }
+    acc.status='paused';
+    return;
+  }
+  if(acc.status==='challenge'){
+    const tgt = targetBalOf(acc,rules);
+    if(acc.balance >= tgt - 1e-6 && consistencyOk(rules, acc.dayProfits, acc.dailyPnl)){
+      acc.phaseIdx++;
+      if(acc.phaseIdx >= tpl.phases.length){
+        acc.everFunded=true; // permanente, para la tasa de aprobación del tracker (no se pisa aunque después se queme)
+        acc.milestones.push({type:'approved', time: curBar()? curBar().t.toISOString() : null, balance: acc.balance});
+        if(state.simMode==='challenge'){
+          // Modo Challenge: acá termina — nunca se activa como fondeada, solo interesa si pasó o no.
+          acc.status='passed';
+          retireFromAgentLive(acc);
+        } else {
+          acc.status='funded';
+          if(tpl.activationCost>0) state.ledger.push({type:'cost', amount:-tpl.activationCost, day:state.dayIndex, acc:acc.name});
+        }
+      }
+      // nueva etapa (siguiente fase o fondeada): reinicia línea base, peak y ventana de consistencia
+      acc.stageStartBalance = acc.balance;
+      acc.peakBalance = acc.balance;
+      acc.dayProfits = [];
+    }
+    // si no cumple consistencia, se queda en la fase actual hasta que el ratio mejore (aproximado, EOD)
+  }
+}
+
+function applyRealized(acc, pnl){
+  const tpl=tplOf(acc);
+  acc.balance += pnl; acc.dailyPnl += pnl;
+  const rules=rulesFor(acc,tpl);
+  if(rules && rules.ddType==='trailing') acc.peakBalance=Math.max(acc.peakBalance,acc.balance);
+  checkAccount(acc,tpl);
+}
+
+function rollDay(){
+  state.dayIndex++;
+  for(const acc of state.accounts){
+    if(acc.status==='blown'||acc.status==='paid') continue;
+    const tpl=tplOf(acc);
+    const effStatus = acc.status==='paused' ? acc.prevStatus : acc.status;
+    const effPhase  = acc.status==='paused' ? acc.prevPhaseIdx : acc.phaseIdx;
+    const rules = effStatus==='challenge' ? (tpl.phases[effPhase]||null) : (effStatus==='funded'? tpl.funded : null);
+    if(rules && rules.ddType==='eod-trailing') acc.peakBalance=Math.max(acc.peakBalance,acc.balance);
+    // tracking para consistencia (challenge y fondeada) y elegibilidad de retiro (solo fondeada)
+    acc.dayProfits.push(acc.dailyPnl);
+    // arrastre de pérdidas al objetivo del intento de colchón: si el día cerró en negativo y la cuenta
+    // TODAVÍA no logró el colchón, esa pérdida se suma al objetivo del día siguiente — si no, el agente
+    // vuelve a apuntar al objetivo "de cero" cada día, ignorando lo que ya perdió intentándolo.
+    if(effStatus==='funded' && acc.activated && !acc.everReachedCushion && acc.dailyPnl<0){
+      acc.fundedCushionDeficit=(acc.fundedCushionDeficit||0) + (-acc.dailyPnl);
+    }
+    if(effStatus==='funded' && rules && acc.dailyPnl >= rules.minDayProfit){
+      acc.cycleValidDays++; acc.cycleProfitSum += acc.dailyPnl;
+    }
+    if(acc.status==='paused'){ acc.status=acc.prevStatus; acc.phaseIdx=acc.prevPhaseIdx; delete acc.prevStatus; delete acc.prevPhaseIdx; }
+    acc.dayStartBalance=acc.balance; acc.dailyPnl=0;
+  }
+}
+
+function buyAccount(tpl, manual){
+  // el botón de Reset no es exclusivo del agente: la primera compra (manual o del agente) tras cargar
+  // datos o tras el último Reset establece el punto al que se puede volver — así "Reset" también sirve
+  // para deshacer una tanda de pruebas manuales, no solo una corrida del agente. La foto se toma ACÁ,
+  // antes de tocar nada, para que Reset pueda deshacer incluso esta primera compra.
+  if(!state.agentSnapshot) takeAgentSnapshot();
+  // en Modo Colchón, comprar A MANO salta directo a fondeada activada (ver newAccountInstance).
+  // El agente (manual=false/undefined) sigue arrancando por el challenge siempre — eso ya funciona
+  // como se espera y no se toca acá.
+  const skipToFunded = !!manual && state.simMode==='cushion';
+  const acc=newAccountInstance(tpl,state.dayIndex,skipToFunded);
+  state.accounts.push(acc);
+  state.agentLiveAccounts.push(acc);
+  state.ledger.push({type:'cost', amount:-tpl.cost, day:state.dayIndex, acc:acc.name});
+  state.selAcct=acc.id;
+  updateAgentResetButton();
+  renderAll();
+}
+// saca una cuenta de la lista viva en cuanto queda terminal (quemada, o cobrada-y-cerrada).
+// El historial completo en state.accounts nunca se toca (lo sigue viendo el Tracker); esto solo
+// acota el conjunto que el agente escanea en cada barra.
+// estados de los que una cuenta NUNCA vuelve — no ocupan más cupo, no siguen operando.
+// 'passed': challenge aprobado en Modo Challenge (nunca llega a fondeada, a propósito).
+function isTerminalStatus(status){
+  return status==='blown' || status==='paid' || status==='passed';
+}
+function retireFromAgentLive(acc){
+  if(isTerminalStatus(acc.status)){
+    const i=state.agentLiveAccounts.indexOf(acc);
+    if(i!==-1) state.agentLiveAccounts.splice(i,1);
+  }
+}
+
+// activa la cuenta fondeada (botón "Fondear"): resetea al saldo NOMINAL de la plantilla, no al balance
+// de cierre del challenge, e inicia todas las métricas de la etapa fondeada desde cero.
+// cuenta las fondeadas que OCUPAN CUPO. Ojo: una cuenta fondeada que tocó el límite diario queda con
+// status='paused' (transitorio, vuelve sola al día siguiente) — sigue ocupando su lugar aunque su status
+// no diga 'funded'. Contarla mal hacía que el agente creyera tener cupo libre y activara de más, y al
+// reactivarse las pausadas terminabas con más fondeadas operando que el máximo configurado.
+function countFundedActive(){
+  return state.agentLiveAccounts.filter(a=>{
+    if(!a.activated) return false;
+    const s = a.status==='paused' ? (a.prevStatus||'') : a.status;
+    return s==='funded';
+  }).length;
+}
+function activateFundedAccount(acc){
+  // el cupo se chequea ACÁ, no en cada llamador — así ni el botón manual "Fondear" ni el agente
+  // pueden pisar el máximo configurado, sin importar por dónde se dispare la activación.
+  const A=state.agent;
+  const activeCount=countFundedActive();
+  if(activeCount>=A.maxFundedActive){
+    alert('No se puede activar: ya hay '+activeCount+' cuenta(s) fondeada(s) activa(s), el máximo configurado es '+A.maxFundedActive+'. Subí el cupo en "Configurar" del Modo Agente si querés activar más.');
+    return false;
+  }
+  const tpl=tplOf(acc);
+  acc.balance=tpl.size; acc.peakBalance=tpl.size; acc.stageStartBalance=tpl.size;
+  acc.dailyPnl=0; acc.dayProfits=[]; acc.cycleValidDays=0; acc.cycleProfitSum=0; acc.payoutCount=0;
+  acc.fundedCushionDeficit=0;
+  acc.activated=true;
+  renderAll();
+  return true;
+}
+// determina si el botón "Cobrar" debe estar habilitado (misma lógica de gating que collectPayout,
+// pero sin efectos secundarios — se usa para pintar el botón, no para ejecutar el cobro).
+function isPayoutEligible(acc, tpl){
+  if(acc.status!=='funded' || !acc.activated) return false;
+  const f=tpl.funded;
+  if(f.maxPayouts>0 && acc.payoutCount>=f.maxPayouts) return false;
+  if(f.minDays>0 && acc.cycleValidDays<f.minDays) return false;
+  if(f.minCycleSum>0 && acc.cycleProfitSum<f.minCycleSum) return false;
+  if(!consistencyOk(f, acc.dayProfits, acc.dailyPnl)) return false;
+  const profit=acc.balance-acc.stageStartBalance;
+  const avail=f.bufferOn ? profit-f.buffer : profit;
+  return avail>0;
+}
+function collectPayout(acc){
+  const tpl=tplOf(acc);
+  if(acc.status!=='funded') return;
+  if(!acc.activated){ alert('Primero tenés que activar la cuenta fondeada (botón "Fondear").'); return; }
+  const f=tpl.funded;
+  if(f.maxPayouts>0 && acc.payoutCount>=f.maxPayouts){
+    alert('Esta cuenta ya alcanzó el máximo de '+f.maxPayouts+' retiros permitidos por la plantilla.'); return;
+  }
+  if(f.minDays>0 && acc.cycleValidDays<f.minDays){
+    alert('Faltan días válidos para poder retirar: '+acc.cycleValidDays+' / '+f.minDays+'.'); return;
+  }
+  if(f.minCycleSum>0 && acc.cycleProfitSum<f.minCycleSum){
+    alert('Aún no se alcanzó la suma mínima de esos días: '+money(acc.cycleProfitSum)+' / '+money(f.minCycleSum)+'.'); return;
+  }
+  if(!consistencyOk(f, acc.dayProfits, acc.dailyPnl)){
+    alert('El mejor día supera el % de consistencia permitido para este retiro.'); return;
+  }
+  const profit = acc.balance - acc.stageStartBalance;  // ganancia generada YA fondeada (no incluye el colchón del challenge)
+  const avail = f.bufferOn ? profit - f.buffer : profit;
+  if(avail<=0){ alert('No hay excedente retirable'+(f.bufferOn?' por encima del buffer.':' en esta etapa fondeada.')); return; }
+
+  const cap = (f.capScheduleOn && f.capSchedule && f.capSchedule.length)
+    ? f.capSchedule[Math.min(acc.payoutCount, f.capSchedule.length-1)]
+    : f.payoutCap;
+  let withdrawal = (f.payoutPct/100) * avail;
+  if(cap>0) withdrawal = Math.min(withdrawal, cap);
+  if(withdrawal<=0){ alert('El monto a retirar da 0.'); return; }
+
+  const cashToTrader = withdrawal * (f.splitPct/100);  // lo que realmente cobra el trader tras el split de la firm
+  acc.payouts += cashToTrader;
+  acc.payoutCount++;
+  state.ledger.push({type:'payout', amount:+cashToTrader, day:state.dayIndex, acc:acc.name});
+  // el colchón ya está construido y NO se pierde al cobrar: los ciclos siguientes siguen operando en
+  // régimen de extracción (día 2+), nunca vuelven al ATM de colchón. Es lo mismo que hace la calculadora,
+  // donde el flag `reached` no se resetea tras un payout.
+  state.agent.fundedGoalReached[acc.id]=true;
+  state.agent.fundedDayCounts[acc.id]=2; // ya pasado el "día 1": el slot queda en 'rest' (extracción)
+  const balanceBefore=acc.balance;
+  // al llegar al máximo de retiros configurado, la cuenta se cierra SIEMPRE — sin importar closeOnPayout —
+  // porque ya no le queda nada más por hacer: seguir "operando" sería ocupar un cupo de fondeada activa
+  // para siempre, sin poder retirar nunca más ni liberarle el lugar a la próxima cuenta en espera.
+  const reachedMaxPayouts = f.maxPayouts>0 && acc.payoutCount>=f.maxPayouts;
+  if(f.closeOnPayout || reachedMaxPayouts){ acc.status='paid'; retireFromAgentLive(acc); }
+  else {
+    // OJO: solo baja el BALANCE. No se tocan stageStartBalance ni peakBalance.
+    // Antes se les restaba el retiro también, y como el profit retirable se calcula como
+    // (balance - stageStartBalance), restarle a ambos dejaba el profit intacto tras cobrar: la cuenta
+    // podía retirar el mismo excedente una y otra vez. Es lo mismo que hace la calculadora con p -= W.
+    acc.balance -= withdrawal;
+    acc.dayProfits=[]; acc.cycleValidDays=0; acc.cycleProfitSum=0;  // arranca nuevo ciclo de retiro
+  }
+  acc.milestones.push({type:'payout', time: curBar()? curBar().t.toISOString() : null,
+    balance: acc.balance, balanceBefore, withdrawal, cashToTrader, closed: !!(f.closeOnPayout || reachedMaxPayouts)});
+  renderAll();
+}
+
+/* ============================================================
+   DATOS: generador demo + parser CSV
+   ============================================================ */
+function fmtDay(d){
+  const cut=state.tradingDayCutoff;
+  const cutMin = cut ? cut.h*60+cut.m : 0;
+  if(!cutMin){ // sin corte configurado: medianoche pura (compatibilidad)
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  const mins=d.getHours()*60+d.getMinutes();
+  const shifted=new Date(d.getTime());
+  if(mins>=cutMin) shifted.setDate(shifted.getDate()+1); // ya arrancó la sesión del día siguiente
+  return shifted.getFullYear()+'-'+String(shifted.getMonth()+1).padStart(2,'0')+'-'+String(shifted.getDate()).padStart(2,'0');
+}
+function fmtTime(d){ return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+
+/* ============================================================
+   MULTI-TIMEFRAME: detección de resolución nativa + agregación
+   ============================================================ */
+function detectNativeMinutes(bars){
+  const deltas={};
+  for(let i=1;i<bars.length;i++){
+    if(bars[i].day!==bars[i-1].day) continue; // ignora gaps overnight
+    const d=Math.round((bars[i].t-bars[i-1].t)/60000);
+    if(d>0) deltas[d]=(deltas[d]||0)+1;
+  }
+  let best=1, bestCount=0;
+  for(const k in deltas){ if(deltas[k]>bestCount){ bestCount=deltas[k]; best=+k; } }
+  return best||1;
+}
+function tfLabel(mins){
+  if(mins>=1440) return '1D';
+  if(mins>=60) return (mins/60)+'h';
+  return mins+'m';
+}
+// reconstruye velas de un timeframe mayor a partir de las nativas, revelando solo hasta uptoIdx
+// (la última vela agregada queda "en formación" con lo revelado hasta ahora, como en cualquier plataforma real)
+function aggregateBars(nativeBars, uptoIdx, tfMinutes){
+  if(tfMinutes<=0 || uptoIdx<0) return [];
+  const isDaily = tfMinutes>=1440;
+  const out=[]; let cur=null, curKey=null;
+  for(let idx=0; idx<=uptoIdx; idx++){
+    const b=nativeBars[idx];
+    let key;
+    if(isDaily){ key=b.day; }
+    else { const mins=b.t.getHours()*60+b.t.getMinutes(); key=b.day+'_'+Math.floor(mins/tfMinutes)*tfMinutes; }
+    if(key!==curKey){ if(cur) out.push(cur); cur={t:new Date(b.t),o:b.o,h:b.h,l:b.l,c:b.c,v:b.v||0,day:b.day}; curKey=key; }
+    else { cur.h=Math.max(cur.h,b.h); cur.l=Math.min(cur.l,b.l); cur.c=b.c; cur.v=(cur.v||0)+(b.v||0); }
+  }
+  if(cur) out.push(cur);
+  return out;
+}
+// resuelve qué barras mostrar en el chart (nativas o agregadas) y hasta qué índice, en un solo lugar
+// para que drawChart y drawRSIChart siempre miren exactamente lo mismo.
+function computeDispBarsWindow(){
+  const isNativeTF = !state.chartTF || state.chartTF===state.nativeMinutes;
+  const dispBars = isNativeTF ? state.bars : aggregateBars(state.bars, state.idx, state.chartTF);
+  const end = isNativeTF ? Math.min(state.idx, dispBars.length-1) : dispBars.length-1;
+  const start = Math.max(0, end-state.view+1);
+  return {isNativeTF, dispBars, start, end};
+}
+function renderTFButtons(){
+  const box=document.getElementById('tfGroup'); if(!box) return;
+  const native=state.nativeMinutes||1;
+  const candidates=[native, 5, 15, 30, 60, 240, 1440]
+    .filter((tf,idx,arr)=> tf>=native && tf%native===0 && arr.indexOf(tf)===idx)
+    .sort((a,b)=>a-b);
+  box.innerHTML='<span class="mini">TF</span>';
+  for(const tf of candidates){
+    const b=document.createElement('button');
+    b.textContent=tfLabel(tf)+(tf===native?' (nativo)':'');
+    b.className = tf===state.chartTF ? 'on' : '';
+    b.onclick=()=>{
+      state.chartTF=tf;
+      if(tf!==state.nativeMinutes){ state.tool='cursor'; state.drawTmp=null; state.dragging=null; state.selDraw=null; hideDrawToolbar();
+        document.querySelectorAll('.tool').forEach(x=>x.classList.toggle('on', x.dataset.tool==='cursor')); }
+      renderTFButtons(); drawChart();
+    };
+    box.appendChild(b);
+  }
+}
+
+/* ============================================================
+   INDICADORES: SMA, Bandas de Bollinger, RSI
+   ============================================================ */
+function computeSMA(closes, period){
+  const out=new Array(closes.length).fill(null); let sum=0;
+  for(let i=0;i<closes.length;i++){ sum+=closes[i]; if(i>=period) sum-=closes[i-period]; if(i>=period-1) out[i]=sum/period; }
+  return out;
+}
+function computeBollinger(closes, period, mult){
+  const sma=computeSMA(closes,period);
+  const upper=new Array(closes.length).fill(null), lower=new Array(closes.length).fill(null);
+  for(let i=period-1;i<closes.length;i++){
+    let sumSq=0; for(let j=i-period+1;j<=i;j++){ const d=closes[j]-sma[i]; sumSq+=d*d; }
+    const sd=Math.sqrt(sumSq/period); upper[i]=sma[i]+mult*sd; lower[i]=sma[i]-mult*sd;
+  }
+  return {sma, upper, lower};
+}
+function computeRSI(closes, period){
+  const out=new Array(closes.length).fill(null);
+  if(closes.length<period+1) return out;
+  let gainSum=0, lossSum=0;
+  for(let i=1;i<=period;i++){ const ch=closes[i]-closes[i-1]; if(ch>=0) gainSum+=ch; else lossSum-=ch; }
+  let avgGain=gainSum/period, avgLoss=lossSum/period;
+  out[period]=avgLoss===0?100:100-100/(1+avgGain/avgLoss);
+  for(let i=period+1;i<closes.length;i++){
+    const ch=closes[i]-closes[i-1]; const gain=ch>0?ch:0, loss=ch<0?-ch:0;
+    avgGain=(avgGain*(period-1)+gain)/period; avgLoss=(avgLoss*(period-1)+loss)/period;
+    out[i]=avgLoss===0?100:100-100/(1+avgGain/avgLoss);
+  }
+  return out;
+}
+function drawIndicatorLine(arr, start, end, iToX, pToY, color){
+  cx.strokeStyle=color; cx.lineWidth=1.3; cx.beginPath();
+  let started=false;
+  for(let idx=start; idx<=end; idx++){
+    const v=arr[idx]; if(v==null){ started=false; continue; }
+    const x=iToX(idx), y=pToY(v);
+    if(!started){ cx.moveTo(x,y); started=true; } else cx.lineTo(x,y);
+  }
+  cx.stroke();
+}
+function drawRSIChart(){
+  const cv=document.getElementById('rsiChart');
+  const handle=document.getElementById('rsiResizeHandle');
+  const on = state.indicators.rsi.on && state.idx>=0 && state.bars.length;
+  cv.style.display = on ? 'block' : 'none';
+  if(handle) handle.style.display = on ? 'block' : 'none';
+  if(!on) return;
+  const {dispBars,start,end} = computeDispBarsWindow();
+  if(end<0) return;
+  const {w,h}=fitCanvas(cv); const g=cv.getContext('2d'); const tc=TC();
+  g.clearRect(0,0,w,h);
+  const period=state.indicators.rsi.period;
+  const closes=dispBars.slice(0,end+1).map(b=>b.c);
+  const rsi=computeRSI(closes,period);
+  const padL=6, padR=40, padT=8, padB=4;
+  const plotW=w-padL-padR, plotH=h-padT-padB;
+  const n=end-start+1;
+  const bw=plotW/n;
+  const iToX=(i)=> padL+(i-start)*bw+bw*0.5;
+  const yToY=(v)=> padT+(100-v)/100*plotH;
+  g.strokeStyle=tc.grid; g.lineWidth=1; g.font='9px monospace'; g.fillStyle=tc.axis;
+  [30,50,70].forEach(v=>{ const y=yToY(v); g.beginPath(); g.moveTo(padL,y); g.lineTo(padL+plotW,y); g.stroke(); g.fillText(String(v), padL+plotW+4, y+3); });
+  g.strokeStyle='#3fa9f5'; g.lineWidth=1.3; g.beginPath();
+  let started=false;
+  for(let idx=start; idx<=end; idx++){
+    const v=rsi[idx]; if(v==null){ started=false; continue; }
+    const x=iToX(idx), y=yToY(v);
+    if(!started){ g.moveTo(x,y); started=true; } else g.lineTo(x,y);
+  }
+  g.stroke();
+  const last=rsi[end];
+  if(last!=null){ g.fillStyle='#3fa9f5'; g.font='10px monospace'; g.fillText('RSI('+period+'): '+last.toFixed(1), padL+4, padT+4); }
+}
+
+
+function genSample(days=6, barsPerDay=180){
+  const bars=[]; let px=20000; const start=new Date(2025,0,6,9,30,0);
+  const SUB=60; // sub-pasos por barra: el minuto se recorre de verdad y el high/low sale de ese recorrido
+  for(let d=0; d<days; d++){
+    const dayDate=new Date(start); dayDate.setDate(start.getDate()+d);
+    let t=new Date(dayDate); t.setHours(9,30,0,0);
+    const drift=(Math.random()-0.5)*4;
+    for(let b=0;b<barsPerDay;b++){
+      const vol=6+Math.random()*10;
+      // el tamaño del sub-paso se calibra para que la desviación por barra sea la misma que antes
+      const step=vol/Math.sqrt(SUB);
+      const o=px; let p=o, h=o, l=o;
+      for(let s=0;s<SUB;s++){
+        p += (Math.random()-0.5)*step + drift*0.15/SUB;
+        if(p>h) h=p; if(p<l) l=p;
+      }
+      const c=p;
+      // OJO: el high/low NO se inventa como ruido sobre el cuerpo. Si se hace así, una barra puede
+      // "no alcanzar" un SL lejano mientras sí toca un TP cercano con mucha más frecuencia que en la
+      // realidad, y cualquier ATM con TP más chico que el rango típico de la barra gana un edge falso
+      // (medido: hasta +11 puntos de winrate). Recorrer la barra de verdad elimina ese sesgo.
+      bars.push({t:new Date(t), o:r2(o),h:r2(h),l:r2(l),c:r2(c),v:Math.round(50+Math.random()*400), day:fmtDay(t)});
+      px=c;
+      t=new Date(t.getTime()+60000);
+    }
+  }
+  return bars;
+}
+function r2(x){ return Math.round(x*4)/4; }
+
+function parseCSV(text){
+  const lines=text.trim().split(/\r?\n/);
+  let startLine=0;
+  const first=lines[0].toLowerCase();
+  if(/date|time|open|close/.test(first)) startLine=1;
+  const out=[];
+  for(let i=startLine;i<lines.length;i++){
+    const parts=lines[i].split(/[,;\t]/).map(s=>s.trim());
+    if(parts.length<5) continue;
+    let t;
+    // caso: datetime en 1 columna, o fecha+hora en 2 columnas
+    let oi=1;
+    if(/[-/:]/.test(parts[0]) && /[-/:]/.test(parts[1]) && isNaN(Date.parse(parts[0]))){
+      t=new Date((parts[0]+' '+parts[1]).replace(/\./g,'-')); oi=2;
+    } else if(!isNaN(Date.parse(parts[0]))){
+      t=new Date(parts[0]); oi=1;
+    } else if(/^\d{10,13}$/.test(parts[0])){
+      t=new Date(parseInt(parts[0])* (parts[0].length<=10?1000:1)); oi=1;
+    } else { continue; }
+    const o=+parts[oi], h=+parts[oi+1], l=+parts[oi+2], c=+parts[oi+3], v=+parts[oi+4]||0;
+    if([o,h,l,c].some(isNaN)) continue;
+    out.push({t, o,h,l,c,v, day:fmtDay(t)});
+  }
+  out.sort((a,b)=>a.t-b.t);
+  return out;
+}
+
+function loadBars(bars){
+  if(!bars.length){ alert('No se pudieron leer barras.'); return; }
+  state.bars=bars; state.idx=Math.min(80, bars.length-1);
+  state.dayIndex=0; state.orders=[]; state.drawings=[];
+  state.nativeMinutes=detectNativeMinutes(bars);
+  state.chartTF=state.nativeMinutes; // arranca mostrando el timeframe nativo de los datos cargados
+  // reset opcional de cuentas? mantenemos cuentas pero avisamos
+  state.agentSnapshot=null; // una foto tomada con los datos VIEJOS ya no tiene sentido con este dataset nuevo
+  updateAgentResetButton();
+  renderTFButtons();
+  renderAll();
+}
+
+/* ============================================================
+   TRADING / FILLS
+   ============================================================ */
+function curBar(){ return state.bars[state.idx]; }
+function curPx(){ const b=curBar(); return b?b.c:0; }
+function pv(){ return PV[state.instr]||1; }
+
+function activeAcct(){ return state.accounts.find(a=>a.id===state.selAcct); }
+function canTrade(acc){ return acc && (acc.status==='challenge' || (acc.status==='funded' && acc.activated)); }
+
+function openPosition(side, qty, slPts, tpPts, atmName){
+  const acc=activeAcct();
+  if(!canTrade(acc)){ alert('Seleccioná una cuenta activa (no quemada/pausada/cobrada).'); return; }
+  if(acc.position){ alert('Esta cuenta ya tiene una posición abierta. Cerrala primero.'); return; }
+  const chk=canOpenPosition(acc, side);
+  if(!chk.ok){
+    if(chk.reason==='hedge') alert('Bloqueado: '+chk.other.name+' (misma plantilla) ya tiene una posición en sentido contrario. Hedging entre cuentas no está permitido.');
+    else alert('Bloqueado: la plantilla no permite el mismo sentido en simultáneo entre varias cuentas (activá el toggle en la plantilla si querés permitirlo).');
+    return;
+  }
+  const px=curPx();
+  acc.position={ side, qty, entry:px, entryIdx:state.idx, atmName: atmName||null,
+    sl: (slPts!=null && isFinite(slPts))? px - side*slPts : null,
+    tp: (tpPts!=null && isFinite(tpPts))? px + side*tpPts : null };
+  renderAll();
+}
+function closePosition(acc, exitPx, reason, exitIdx){
+  const p=acc.position; if(!p) return;
+  const gross=(exitPx-p.entry)*p.side*p.qty*pv();
+  const commission=state.comm*2*p.qty;
+  const net=gross-commission;
+  state.tradingPnl += net;
+  const entryBar=state.bars[p.entryIdx], exitBar=exitIdx!=null? state.bars[exitIdx] : curBar();
+  applyRealized(acc, net); // actualiza acc.balance ANTES de registrar el trade, para poder guardar el saldo posterior
+  acc.tradeLog.push({
+    entryTime: entryBar? entryBar.t.toISOString() : null,
+    exitTime: exitBar? exitBar.t.toISOString() : null,
+    side:p.side, qty:p.qty, atmName:p.atmName||null,
+    entry:p.entry, exit:exitPx, pnl:net, reason, balance:acc.balance,
+  });
+  acc.position=null;
+  retireFromAgentLive(acc); // si quedó quemada, sale del escaneo caliente del agente
+  renderAll();
+}
+function placeOrder(side,type,px,qty,slPts,tpPts,atmName){
+  const acc=activeAcct();
+  if(!canTrade(acc)){ alert('Seleccioná una cuenta activa.'); return; }
+  if(!isFinite(px)){ alert('Precio inválido.'); return; }
+  state.orders.push({id:state.oid++, accId:acc.id, side,type,px,qty, atmName: atmName||null,
+    sl:(slPts!=null&&isFinite(slPts))?slPts:null, tp:(tpPts!=null&&isFinite(tpPts))?tpPts:null});
+  renderAll();
+}
+function cancelOrder(id){ state.orders=state.orders.filter(o=>o.id!==id); renderAll(); }
+
+// alerta flotante sobre el chart
+function showAlert(msg, kind){
+  const stack=document.getElementById('alertStack'); if(!stack) return;
+  const el=document.createElement('div');
+  el.className='alert-item '+(kind||'');
+  el.textContent=msg;
+  stack.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, 5500);
+}
+
+// genera un camino sintético de "ticks" dentro de una barra (open -> ...ruido... -> extremo1 -> extremo2 -> close),
+// eligiendo al azar si toca primero el low o el high, para resolver sin ambigüedad qué nivel se cruzó primero.
+function genIntrabarPath(bar, steps=8){
+  const {o,h,l,c}=bar;
+  const lowFirst = Math.random()<0.5;
+  const ext1 = lowFirst? l : h;
+  const ext2 = lowFirst? h : l;
+  const path=[o];
+  function leg(a,b,n){
+    for(let i=1;i<n;i++){
+      const t=i/n;
+      let v=a+(b-a)*t;
+      const noise=(Math.random()-0.5)*(h-l)*0.1;
+      v=Math.max(l, Math.min(h, v+noise));
+      path.push(v);
+    }
+    path.push(b); // endpoint exacto: asegura que el extremo realmente se toque
+  }
+  leg(o, ext1, steps);
+  leg(ext1, ext2, steps);
+  leg(ext2, c, steps);
+  return path;
+}
+// recorre el camino en orden y devuelve el primer candidato cruzado (respeta la secuencia real, no la distancia)
+function findFirstTouchInPath(path, candidates){
+  for(let i=1;i<path.length;i++){
+    const p0=path[i-1], p1=path[i];
+    const segLo=Math.min(p0,p1), segHi=Math.max(p0,p1);
+    const touched=candidates.filter(c=>c.price>=segLo && c.price<=segHi);
+    if(touched.length){
+      touched.sort((a,b)=>Math.abs(a.price-p0)-Math.abs(b.price-p0));
+      return touched[0];
+    }
+  }
+  return null;
+}
+
+// resuelve la salida de una posición contra una barra: SL, TP, drawdown máximo y límite diario compiten
+// TODOS juntos por lo que se toca primero — antes el riesgo de cuenta (DD/daily) siempre se chequeaba
+// antes que el SL/TP de la posición, así que un SL cercano podía perderse contra un límite diario lejano.
+// Con datos de barras (no tick) hay ambigüedad real cuando varios niveles caen en la misma barra:
+// por default se resuelve de forma conservadora (gana el nivel adverso más cercano a la entrada, y el
+// TP solo gana si nada adverso fue tocado). Con el toggle de movimiento intrabar activado, en cambio,
+// se simula un camino de "ticks" dentro de la barra y gana el que ese camino cruce primero de verdad.
+function resolveExit(acc, bar){
+  const p=acc.position; if(!p) return false;
+  const tpl=tplOf(acc);
+  const rules=rulesFor(acc,tpl);
+  const denom=p.side*p.qty*pv();
+  const cands=[];
+  if(rules){
+    const thr=thresholdOf(acc,rules);
+    const ddPrice = p.entry + (thr - acc.balance)/denom;
+    if(isFinite(ddPrice)) cands.push({price:ddPrice, kind:'dd'});
+    if(rules.dailyLoss>0){
+      const allowed = -rules.dailyLoss - acc.dailyPnl;
+      const dailyPrice = p.entry + allowed/denom;
+      if(isFinite(dailyPrice)) cands.push({price:dailyPrice, kind:'daily'});
+    }
+  }
+  if(p.sl!=null) cands.push({price:p.sl, kind:'SL'});
+  if(p.tp!=null) cands.push({price:p.tp, kind:'TP'});
+  if(!cands.length) return false;
+
+  let hit=null;
+  if(state.randomIntrabar){
+    const path=genIntrabarPath(bar);
+    hit=findFirstTouchInPath(path, cands);
+  } else {
+    const touched=cands.filter(c=>{
+      if(c.kind==='TP'){
+        if(p.side>0) return c.price>=p.entry-1e-9 && bar.h>=c.price && c.price>=bar.l;
+        return c.price<=p.entry+1e-9 && bar.l<=c.price && c.price<=bar.h;
+      }
+      if(p.side>0) return c.price<=p.entry+1e-9 && bar.l<=c.price && c.price<=bar.h;
+      return c.price>=p.entry-1e-9 && bar.h>=c.price && c.price>=bar.l;
+    });
+    if(touched.length){
+      const adverse=touched.filter(c=>c.kind!=='TP');
+      if(adverse.length){ adverse.sort((a,b)=>Math.abs(a.price-p.entry)-Math.abs(b.price-p.entry)); hit=adverse[0]; }
+      else { touched.sort((a,b)=>Math.abs(a.price-p.entry)-Math.abs(b.price-p.entry)); hit=touched[0]; }
+    }
+  }
+  if(!hit) return false;
+  closePosition(acc, hit.price, hit.kind);
+  if(acc.status==='blown') showAlert('⛔ MÁXIMO DRAWDOWN VIOLADO — '+acc.name+' quemada', 'blown');
+  else if(acc.status==='paused') showAlert('⏸ LÍMITE DIARIO TOCADO — pausa diaria en '+acc.name, 'paused');
+  return true;
+}
+
+// procesa fills de órdenes + brackets contra un bar recién revelado, para TODAS las cuentas en paralelo
+// (cada cuenta puede tener su propia posición abierta simultáneamente; ver canOpenPosition para hedging)
+function processBar(bar){
+  // 0) salida de posición (SL/TP/DD/daily compiten juntos) — independiente por cuenta.
+  // Escanea la lista VIVA (acotada), no el historial completo: esto corre en cada barra, así que
+  // es el punto más sensible a que el costo crezca sin límite con la duración de la corrida.
+  for(const acc of state.agentLiveAccounts){ if(acc.position) resolveExit(acc, bar); }
+
+  // 1) órdenes de trabajo (cada orden pertenece a una cuenta puntual)
+  const remaining=[];
+  for(const o of state.orders){
+    const acc=state.agentLiveAccounts.find(a=>a.id===o.accId);
+    if(!acc){ continue; } // orden huérfana (no debería pasar) -> se descarta
+    let fill=false;
+    if(o.type==='limit'){
+      if(o.side>0 && bar.l<=o.px) fill=true;
+      if(o.side<0 && bar.h>=o.px) fill=true;
+    } else { // stop
+      if(o.side>0 && bar.h>=o.px) fill=true;
+      if(o.side<0 && bar.l<=o.px) fill=true;
+    }
+    let filled=false;
+    if(fill && !acc.position && canTrade(acc) && canOpenPosition(acc,o.side).ok){
+      acc.position={side:o.side, qty:o.qty, entry:o.px, entryIdx:state.idx, atmName:o.atmName||null,
+        sl:o.sl!=null? o.px - o.side*o.sl : null,
+        tp:o.tp!=null? o.px + o.side*o.tp : null};
+      filled=true;
+    }
+    if(!filled) remaining.push(o); // no tocó precio, ya tenía posición, no operable, o bloqueada por hedging/mismo-sentido
+  }
+  state.orders=remaining;
+}
+
+/* ============================================================
+   REPLAY
+   ============================================================ */
+/* ============================================================
+   MODO AGENTE: simula la operativa día a día de un trader sin edge,
+   reutilizando el mismo reloj de barras que el Play/Step normal.
+   ============================================================ */
+// abre una posición de forma silenciosa (sin alert ni depender de la cuenta seleccionada) —
+// si está bloqueada por hedging o no operable, simplemente no hace nada y se reintenta después.
+function agentTryOpenPosition(acc, side, qty, sl, tp, atmName){
+  if(!canTrade(acc) || acc.position) return false;
+  if(!canOpenPosition(acc, side).ok) return false;
+  const px=curPx();
+  acc.position={ side, qty, entry:px, entryIdx:state.idx, atmName:atmName||null,
+    sl:(sl!=null && isFinite(sl))? px-side*sl : null,
+    tp:(tp!=null && isFinite(tp))? px+side*tp : null };
+  return true;
+}
+// una cuenta "termina por hoy" si se quemó, quedó pausada, no es operable (ej: fondeada sin activar),
+// o llegó al freno de profit diario configurado para su fase/día actual.
+// resuelve en qué "slot" de fondeada está la cuenta: 'day1' (el día 1 real), 'retry' (día 2+ pero
+// todavía no logró el objetivo de día 1 en NINGÚN día del ciclo — sigue reintentando el mismo objetivo),
+// o 'rest' (ya logró el objetivo alguna vez en este ciclo, pasa al régimen de "extracción").
+function agentFundedDaySlot(acc){
+  const A=state.agent;
+  const day=A.fundedDayCounts[acc.id]||1;
+  if(day<=1) return 'day1';
+  return A.fundedGoalReached[acc.id] ? 'rest' : 'retry';
+}
+function agentAccountFinishedToday(acc){
+  const A=state.agent;
+  if(acc.status==='blown'||acc.status==='paid') return true;
+  if(acc.status==='paused') return true;
+  if(!canTrade(acc)) return true;
+  // si la cola de espera ya está en el tope configurado, las cuentas en challenge se pausan — si no,
+  // seguirían pasando y generando más cuentas en espera de las que se configuraron.
+  if(acc.status==='challenge'){
+    const waitingCount=state.agentLiveAccounts.filter(a=>a.status==='funded'&&!a.activated).length;
+    if(waitingCount>=A.maxWaiting) return true;
+  }
+  let target=0;
+  if(acc.status==='challenge') target=A.profitPauseChallenge;
+  else if(acc.status==='funded' && acc.activated){
+    const slot=agentFundedDaySlot(acc);
+    // día1 y reintento persiguen el MISMO objetivo (el "colchón"); una vez logrado, cambia el objetivo
+    target = (slot==='rest') ? A.profitPauseFundedRest : A.profitPauseFundedDay1;
+    if(slot!=='rest' && target>0 && acc.dailyPnl>=target){
+      A.fundedGoalReached[acc.id]=true; // logró el colchón: de ahora en más, régimen "rest" (se resetea en cada payout)
+      if(!acc.everReachedCushion) acc.milestones.push({type:'cushion', time: curBar()? curBar().t.toISOString() : null, balance: acc.balance});
+      acc.everReachedCushion=true; // permanente, para la tasa de colchón del tracker (no se resetea nunca)
+      acc.fundedCushionDeficit=0; // ya no hace falta: la cuenta nunca vuelve a día1/reintento
+      if(state.simMode==='cushion'){
+        // Modo Colchón: acá termina — logró lo único que nos interesaba medir, no sigue a extracción.
+        acc.status='paid';
+        retireFromAgentLive(acc);
+      }
+    }
+  }
+  if(target>0 && acc.dailyPnl>=target) return true;
+  return false;
+}
+// El agente NO usa presets ATM: calcula por sí mismo, en dólares, tanto el riesgo como el objetivo
+// de cada trade, y recién ahí los convierte a puntos. Esto evita tener que precargar un ATM para cada
+// combinación posible de fase/estado, y hace que el riesgo se adapte solo a lo que queda disponible.
+//   SL = riesgo disponible HOY = lo menor entre lo que queda del límite diario y lo que queda del drawdown
+//   TP = lo que falta del objetivo del día (y en challenge, tampoco más de lo que falta para pasar la fase)
+function agentAdaptiveOrder(acc){
+  const A=state.agent;
+  const tpl=tplOf(acc); if(!tpl) return null;
+  const rules=rulesFor(acc,tpl); if(!rules) return null;
+  const qty=Math.max(1, A.qty||1);
+
+  // --- SL: el riesgo que la cuenta REALMENTE tiene disponible hoy ---
+  const ddRoom = acc.balance - thresholdOf(acc, rules);
+  const dailyRoom = (rules.dailyLoss>0) ? (rules.dailyLoss + acc.dailyPnl) : Infinity; // dailyPnl<0 lo achica
+  const riskUsd = Math.min(ddRoom, dailyRoom);
+  if(!(riskUsd>0)) return null; // sin riesgo disponible no hay trade posible
+
+  // --- TP: lo que falta para el objetivo vigente ---
+  let targetDay;
+  if(acc.status==='challenge') targetDay=A.profitPauseChallenge;
+  else targetDay=(agentFundedDaySlot(acc)==='rest') ? A.profitPauseFundedRest : A.profitPauseFundedDay1;
+  let remainingUsd = (targetDay>0) ? (targetDay - acc.dailyPnl) : Infinity;
+  if(acc.status==='challenge'){
+    const remainToPass = rules.target - (acc.balance - acc.stageStartBalance);
+    remainingUsd=Math.min(remainingUsd, remainToPass);
+  } else if(!acc.everReachedCushion && acc.fundedCushionDeficit>0 && isFinite(remainingUsd)){
+    // todavía no logró el colchón: lo que perdió en días anteriores se suma al objetivo de hoy
+    remainingUsd += acc.fundedCushionDeficit;
+  }
+  if(!isFinite(remainingUsd)) remainingUsd = riskUsd; // sin objetivo configurado: apunta 1:1 al riesgo
+  if(!(remainingUsd>0)) return null; // el objetivo del día ya está cumplido
+
+  // el TP apunta al BRUTO: la comisión se cobra igual, así que si apuntara al neto, lo que falta
+  // quedaría orbitando el valor de la comisión sin cerrar nunca.
+  const commissionCost = state.comm*2*qty;
+  return {
+    qty,
+    slPts: riskUsd/(qty*pv()),
+    tpPts: (remainingUsd+commissionCost)/(qty*pv()),
+  };
+}
+// compra challenge hasta el techo configurado, salvo que la cola de espera de fondeo ya esté llena
+function agentReplenish(){
+  const A=state.agent;
+  const tpl=state.templates.find(t=>t.id===A.tplId) || state.templates[0]; if(!tpl) return;
+  const challengeCount=state.agentLiveAccounts.filter(a=>a.status==='challenge').length;
+  const waitingCount=state.agentLiveAccounts.filter(a=>a.status==='funded'&&!a.activated).length;
+  let toBuy=A.challengeTarget-challengeCount;
+  if(waitingCount>=A.maxWaiting) toBuy=0;
+  for(let i=0;i<Math.max(0,toBuy);i++) buyAccount(tpl);
+}
+// activa (Fondear) cuentas en espera mientras haya cupo libre en fondeadas activas
+function agentTryActivateWaiting(){
+  const A=state.agent;
+  let activeCount=countFundedActive();
+  const waiting=state.agentLiveAccounts.filter(a=>a.status==='funded'&&!a.activated).sort((a,b)=>a.id<b.id?-1:1);
+  for(const acc of waiting){
+    if(activeCount>=A.maxFundedActive) break;
+    activateFundedAccount(acc);
+    // OJO: acá NO se fija el contador de día — "día 1" es el día del PRIMER TRADE real de la cuenta,
+    // no el día de activación (si activa tarde y el primer trade sale recién al día siguiente, ese
+    // día siguiente tiene que seguir siendo su día 1, no ya el día 2).
+    activeCount++;
+  }
+}
+// cuando el agente ya terminó con todas las cuentas de hoy (o se pasó del horario de cierre), salta
+// directo al próximo momento en que la ventana horaria [inicio, cierre) vuelva a aplicar, en vez de
+// esperar a que pasen solas las barras restantes sin hacer nada. Ya no hay ninguna lógica especial de
+// fin de semana: si una sesión entera (ej. domingo a la noche) cae fuera de la ventana configurada,
+// el agente simplemente nunca opera ahí — no hace falta detectar "es sábado/domingo" aparte.
+function agentJumpToNextDayStart(){
+  const b=curBar(); if(!b) return;
+  const A=state.agent;
+  const startMin = A.startTimeOfDay ? A.startTimeOfDay.h*60+A.startTimeOfDay.m : null;
+  const endMin = A.endTimeOfDay ? A.endTimeOfDay.h*60+A.endTimeOfDay.m : null;
+  // busca la próxima barra (de cualquier día de trading distinto al actual) cuyo horario REAL caiga
+  // dentro de la ventana [inicio, cierre) configurada. No hace falta ninguna lógica de fin de semana
+  // aparte: si una sesión entera (ej. domingo a la noche) nunca entra en la ventana, este bucle la
+  // salta sola y sigue probando el próximo día — y como un mismo "día de trading" (por el corte de
+  // jornada) puede empezar de noche y seguir de mañana, se recorre bar a bar dentro del bloque, no
+  // solo se mira la primera barra.
+  let skipDay=b.day, j=state.idx+1, guard=0;
+  while(j<state.bars.length){
+    if(++guard>500000) return; // salvaguarda; no debería pasar con datos normales
+    while(j<state.bars.length && state.bars[j].day===skipDay) j++;
+    if(j>=state.bars.length) return; // no hay más días con datos
+    const dayLabel=state.bars[j].day;
+    let k=j, found=-1;
+    while(k<state.bars.length && state.bars[k].day===dayLabel){
+      const mins=state.bars[k].t.getHours()*60+state.bars[k].t.getMinutes();
+      if((startMin==null || mins>=startMin) && (endMin==null || mins<endMin)){ found=k; break; }
+      k++;
+    }
+    if(found>=0){ advanceToIndexSilent(found); return; }
+    skipDay=dayLabel; j=k;
+  }
+}
+function updateAgentStatus(){
+  const el=document.getElementById('agentStatus'); if(!el) return;
+  const A=state.agent;
+  if(!A.active){ el.textContent=''; return; }
+  const b=curBar();
+  const acc=A.queue[A.queueIdx] ? state.agentLiveAccounts.find(a=>a.id===A.queue[A.queueIdx]) : null;
+  el.textContent = b ? `${b.day} ${fmtTime(b.t)} · ${acc? acc.name+' ('+(A.queueIdx+1)+'/'+A.queue.length+')' : 'sin cuentas operables hoy'}` : '';
+}
+function stopAgent(msg){
+  state.agent.active=false;
+  const t=document.getElementById('agentToggle'); if(t) t.checked=false;
+  if(msg) showAlert(msg, '');
+  updateAgentStatus();
+  updateAgentResetButton();
+}
+// foto del estado justo antes de arrancar una corrida del agente, para poder "volver atrás" con Reset
+function takeAgentSnapshot(){
+  state.agentSnapshot={
+    accounts: JSON.parse(JSON.stringify(state.accounts)),
+    ledger: JSON.parse(JSON.stringify(state.ledger)),
+    orders: JSON.parse(JSON.stringify(state.orders)),
+    idx: state.idx, dayIndex: state.dayIndex, tradingPnl: state.tradingPnl,
+    aid: state.aid, selAcct: state.selAcct,
+  };
+}
+function resetAgentRun(){
+  const snap=state.agentSnapshot; if(!snap) return;
+  try{
+    state.accounts=JSON.parse(JSON.stringify(snap.accounts));
+    state.ledger=JSON.parse(JSON.stringify(snap.ledger));
+    state.orders=JSON.parse(JSON.stringify(snap.orders));
+    state.idx=snap.idx; state.dayIndex=snap.dayIndex; state.tradingPnl=snap.tradingPnl;
+    state.aid=snap.aid; state.selAcct=snap.selAcct;
+    // agentLiveAccounts apuntaba a los objetos VIEJOS (antes del reset) — hay que reconstruirla desde
+    // las cuentas nuevas recién parseadas, si no el agente seguiría operando sobre cuentas huérfanas.
+    state.agentLiveAccounts=state.accounts.filter(a=>!isTerminalStatus(a.status));
+    state.agent.lastDay=null; state.agent.queue=[]; state.agent.queueIdx=0; state.agent.nextTradeAt=null;
+    state.agent.finishedToday=new Set(); state.agent.fundedDayCounts={}; state.agent.fundedGoalReached={};
+  } catch(err){
+    // sin este catch, un error acá (ej: un historial gigante, algo no serializable) hacía que el
+    // click en "Reset" no hiciera absolutamente nada, en silencio, sin ningún aviso.
+    console.error('Reset del agente: error al restaurar la foto', err);
+    showAlert('No se pudo resetear: '+((err&&err.message)||err), '');
+  } finally {
+    state.agentSnapshot=null; // se limpia SIEMPRE tras usarla — la próxima aplicación toma una nueva
+                                // foto desde este punto recién restaurado, en vez de seguir apuntando
+                                // para siempre a la primera corrida de la sesión.
+    renderAll(); drawRSIChart();
+    updateAgentStatus();
+    updateAgentResetButton();
+  }
+}
+function updateAgentResetButton(){
+  const b=document.getElementById('btnAgentReset'); if(!b) return;
+  // se habilita con cualquier foto disponible mientras el replay no esté corriendo AHORA MISMO
+  // (pausar el Play NO apaga el agente — state.agent.active sigue en true — así que antes, pausar y
+  // querer resetear dejaba el botón deshabilitado sin ningún aviso, como si "no hiciera nada").
+  b.disabled = !(state.agentSnapshot && !state.playing && !(state.fastForward && state.fastForward.running));
+}
+// un paso del agente = una decisión por barra revelada. Se llama desde stepForward, así que
+// corre a la misma velocidad que el slider de Play (misma barra de abajo que regula todo el replay).
+// cobra automáticamente cualquier cuenta fondeada-activa que ya cumpla la elegibilidad de retiro,
+// sin esperar a que el usuario toque "Cobrar" — así el agente reinicia sus métricas solo y sigue
+// operando el ciclo siguiente con el ATM que corresponda (día 1 -> reintento/resto según logre el colchón).
+function agentAutoCollectPayouts(){
+  // copia [...] porque collectPayout puede dejar la cuenta 'paid' y sacarla de agentLiveAccounts —
+  // mutar la lista mientras el for...of la recorre saltearía la cuenta siguiente.
+  for(const acc of [...state.agentLiveAccounts]){
+    if(acc.status==='funded' && acc.activated){
+      const tpl=tplOf(acc);
+      if(tpl && isPayoutEligible(acc, tpl)) collectPayout(acc);
+    }
+  }
+}
+function agentStep(){
+  const A=state.agent;
+  if(!A.active) return;
+  const b=curBar(); if(!b) return;
+
+  if(A.dateTo && b.t.getTime()>A.dateTo.getTime()){ stopAgent('🤖 Modo agente: ventana de fechas completada.'); return; }
+
+  agentAutoCollectPayouts();
+
+  const today=b.day;
+  if(A.lastDay!==today){
+    A.lastDay=today;
+    A.finishedToday=new Set();
+    // avanza el contador de "día de fondeada" de las que YA estaban activas antes de hoy
+    // (las que se activen recién hoy, más abajo, arrancan en 1 y no se tocan acá) — copia [...] porque
+    // en Modo Colchón esta misma vuelta puede retirar cuentas de agentLiveAccounts (ver abajo).
+    for(const acc of [...state.agentLiveAccounts]){
+      if(acc.status==='funded' && acc.activated && A.fundedDayCounts[acc.id]!=null){
+        if(state.simMode==='cushion' && !acc.everReachedCushion){
+          // Modo Colchón: el día 1 se resolvió sin éxito (ni blow ni colchón logrado) — se cierra acá
+          // como fracaso, en vez de arrastrarse a un "día 2" dormido para siempre (sin ATM de reintento,
+          // así quedaría ocupando el cupo sin poder progresar nunca).
+          acc.status='blown';
+          retireFromAgentLive(acc);
+        } else {
+          A.fundedDayCounts[acc.id]++;
+        }
+      }
+    }
+    agentReplenish();
+    agentTryActivateWaiting();
+    A.queue=state.agentLiveAccounts.filter(acc=>canTrade(acc)).map(acc=>acc.id);
+    A.queueIdx=0; A.nextTradeAt=null;
+  }
+
+  if(A.startTimeOfDay){
+    const mins=b.t.getHours()*60+b.t.getMinutes();
+    if(mins < A.startTimeOfDay.h*60+A.startTimeOfDay.m){ updateAgentStatus(); return; }
+  }
+  if(A.endTimeOfDay){
+    const mins=b.t.getHours()*60+b.t.getMinutes();
+    // ya pasó el cierre de la ventana de hoy: nada que operar, directo al próximo día — cubre tanto
+    // "se nos hizo tarde dentro del día de trading real" como "esta sesión entera cae fuera de ventana"
+    // (ej. domingo a la noche, si arranca después de la hora de cierre configurada).
+    if(mins >= A.endTimeOfDay.h*60+A.endTimeOfDay.m){ agentJumpToNextDayStart(); updateAgentStatus(); return; }
+  }
+
+  while(A.queueIdx<A.queue.length){
+    const acc=state.agentLiveAccounts.find(a=>a.id===A.queue[A.queueIdx]);
+    if(!acc || A.finishedToday.has(acc.id) || agentAccountFinishedToday(acc)){
+      if(acc) A.finishedToday.add(acc.id);
+      A.queueIdx++; A.nextTradeAt=null; continue;
+    }
+    break;
+  }
+  agentTryActivateWaiting(); // por si se liberó un cupo fondeado en este mismo tick
+
+  if(A.queueIdx>=A.queue.length){ agentJumpToNextDayStart(); updateAgentStatus(); return; } // todas las cuentas de hoy terminadas: saltar, no esperar
+
+  const acc=state.agentLiveAccounts.find(a=>a.id===A.queue[A.queueIdx]);
+  state.selAcct=acc.id; // el chart/panel siguen a la cuenta que el agente está operando
+
+  if(acc.position){ updateAgentStatus(); return; } // esperando a que la posición se resuelva sola
+
+  if(A.nextTradeAt==null){
+    const waitMin=A.waitMinMin + Math.random()*Math.max(0,A.waitMaxMin-A.waitMinMin);
+    A.nextTradeAt=new Date(b.t.getTime()+waitMin*60000);
+    updateAgentStatus(); return;
+  }
+  if(b.t.getTime()<A.nextTradeAt.getTime()){ updateAgentStatus(); return; }
+
+  const order=agentAdaptiveOrder(acc);
+  // sin riesgo disponible o con el objetivo del día ya cumplido: la cuenta termina por hoy
+  if(!order){ A.finishedToday.add(acc.id); A.queueIdx++; A.nextTradeAt=null; updateAgentStatus(); return; }
+  if(acc.status==='funded' && acc.activated && A.fundedDayCounts[acc.id]==null) A.fundedDayCounts[acc.id]=1; // hoy es su día 1 de verdad
+  const side=Math.random()<0.5 ? 1 : -1;
+  agentTryOpenPosition(acc, side, order.qty, order.slPts, order.tpPts, 'Agente');
+  A.nextTradeAt=null;
+  updateAgentStatus();
+}
+
+// hace exactamente lo mismo que un tick de stepForward (rota el día si corresponde, procesa la
+// barra, corre el agente) pero SIN renderAll — para usar en trozos sin repintar en cada barra.
+// se llama justo antes de revelar la primera barra de un día nuevo (con state.idx TODAVÍA apuntando
+// a la última barra del día que se deja) — cierra cualquier posición trabada (SL/TP muy anchos,
+// mercado sin movimiento) con el precio de cierre de ESE día. Si esto pasara DESPUÉS de que processBar
+// ya evaluó la barra nueva, un salto de precio — típicamente tras un fin de semana — podría resolver
+// la posición contra ese salto en vez de cerrarla prolijamente. Solo actúa si el agente está corriendo
+// (no cambia nada de la operativa manual).
+function agentFlattenStuckPositionsOnDayChange(){
+  if(!state.agent.active) return;
+  const lastClosePx=state.bars[state.idx].c;
+  const lastCloseIdx=state.idx;
+  // copia [...] porque closePosition puede dejar la cuenta quemada y sacarla de agentLiveAccounts —
+  // mutar la lista mientras el for...of la recorre saltearía la cuenta siguiente.
+  for(const acc of [...state.agentLiveAccounts]){
+    if(acc.position && (acc.status==='challenge' || (acc.status==='funded'&&acc.activated))){
+      closePosition(acc, lastClosePx, 'day-end', lastCloseIdx);
+    }
+  }
+}
+function stepForwardSilent(){
+  if(state.idx>=state.bars.length-1) return false;
+  const nextIdx=state.idx+1;
+  if(state.bars[nextIdx].day!==state.bars[state.idx].day){
+    rollDay(); // Play/Step también debe rotar el día al cruzarlo
+    agentFlattenStuckPositionsOnDayChange();
+  }
+  state.idx=nextIdx;
+  processBar(state.bars[state.idx]);
+  agentStep();
+  return true;
+}
+function stepForward(){
+  if(!stepForwardSilent()){ stopPlay(); return; }
+  renderAll();
+}
+function togglePlay(){ state.playing?stopPlay():startPlay(); }
+function startPlay(){
+  if(state.idx>=state.bars.length-1) return;
+  state.playing=true; document.getElementById('btnPlay').textContent='⏸ Pause';
+  document.getElementById('btnPlay').classList.add('on');
+  clearInterval(state.timer);
+  state.timer=setInterval(stepForward, state.speed);
+  updateAgentResetButton();
+}
+function stopPlay(){
+  state.playing=false; clearInterval(state.timer);
+  const b=document.getElementById('btnPlay'); b.textContent='▶ Play'; b.classList.remove('on');
+  updateAgentResetButton();
+}
+function skipDay(){
+  stopPlay();
+  const b=curBar(); if(!b) return;
+  const px=curPx();
+  for(const acc of [...state.agentLiveAccounts]){ if(acc.position) closePosition(acc, px, 'skip'); } // flatten al saltar
+  const today=b.day;
+  let i=state.idx;
+  while(i<state.bars.length-1 && state.bars[i].day===today) i++;
+  // procesa fills de barras saltadas (para stops/limits pendientes)
+  for(let j=state.idx+1;j<=i;j++){ state.idx=j; processBar(state.bars[j]); }
+  if(state.bars[state.idx].day!==today) rollDay();
+  renderAll();
+}
+
+// avanza el replay hasta la primera barra >= la fecha/hora pedida, procesando cada barra
+// (fills, brackets, riesgo) y cada cruce de día en el camino. Solo hacia adelante — no se puede rebobinar.
+// A diferencia de Saltar día, NO flatea posiciones abiertas: es un "fast-forward", las posiciones siguen
+// corriendo con lo que les toque en el camino (igual que en un broker real).
+// avanza el índice hasta targetIdx procesando cada barra en el camino (fills, brackets, riesgo, rollDay),
+// SIN usar alert() — para uso automatizado/silencioso (agente). El llamador debe validar el índice antes.
+function advanceToIndexSilent(targetIdx){
+  // "Silent" de verdad: sin esto, cada closePosition disparado en el camino repinta todo el DOM, y un
+  // salto largo (ir a fecha, saltar un fin de semana) puede atravesar miles de barras.
+  const prevSuppress=state.suppressRender;
+  state.suppressRender=true;
+  try{
+    for(let j=state.idx+1;j<=targetIdx;j++){
+      if(state.bars[j].day!==state.bars[j-1].day){
+        rollDay();
+        agentFlattenStuckPositionsOnDayChange(); // acá state.idx todavía apunta a j-1 (el día que se deja)
+      }
+      state.idx=j;
+      processBar(state.bars[j]);
+    }
+  } finally {
+    state.suppressRender=prevSuppress; // restaura el valor previo (puede venir anidado desde el modo rápido)
+  }
+}
+function gotoDateTime(target){
+  if(!state.bars.length){ alert('Cargá datos primero.'); return; }
+  const targetIdx = state.bars.findIndex(b=>b.t.getTime() >= target.getTime());
+  if(targetIdx===-1){ alert('No hay datos a partir de esa fecha/hora.'); return; }
+  if(targetIdx<=state.idx){ alert('Esa fecha/hora ya quedó atrás en el replay (no se puede retroceder).'); return; }
+  stopPlay();
+  advanceToIndexSilent(targetIdx);
+  renderAll();
+}
+
+// salta al día calendario siguiente, a la MISMA hora:minuto en la que está parado el replay ahora
+// (a diferencia de "Saltar día", que va al final del día actual sin importar el horario).
+function gotoNextDaySameTime(){
+  const b=curBar(); if(!b) return;
+  const v=$('gotoInput').value; // usa la HORA que la persona haya configurado en "Ir a fecha/hora"
+  let hh=b.t.getHours(), mm=b.t.getMinutes(); // si el campo está vacío, cae en la hora actual del replay
+  if(v){
+    const parsed=new Date(v);
+    if(!isNaN(parsed.getTime())){ hh=parsed.getHours(); mm=parsed.getMinutes(); }
+  }
+  const target=new Date(b.t.getTime());
+  target.setDate(target.getDate()+1);
+  target.setHours(hh,mm,0,0);
+  gotoDateTime(target);
+}
+
+/* ============================================================
+   CHART (canvas propio)
+   ============================================================ */
+const chart=document.getElementById('chart');
+const cx=chart.getContext('2d');
+function fitCanvas(cv){
+  const dpr=window.devicePixelRatio||1;
+  const r=cv.getBoundingClientRect();
+  cv.width=r.width*dpr; cv.height=r.height*dpr;
+  cv.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+  return {w:r.width,h:r.height};
+}
+const THEME_COLORS = {
+  dark:  {grid:'#1b212b', axis:'#5a6572', sep:'#2a3340', sepLbl:'#6b7686', cross:'#3a424e', labelBg:'#171c24', labelFg:'#d7dde5', muted:'#8892a0'},
+  light: {grid:'#e3e6ea', axis:'#7a8494', sep:'#c7ccd3', sepLbl:'#5a6472', cross:'#b7bfc9', labelBg:'#ffffff', labelFg:'#1b222c', muted:'#6b7686'},
+};
+function TC(){ return document.body.classList.contains('light') ? THEME_COLORS.light : THEME_COLORS.dark; }
+
+function drawChart(){
+  const {w,h}=fitCanvas(chart);
+  cx.clearRect(0,0,w,h);
+  const tc=TC();
+  if(state.idx<0 || !state.bars.length){
+    cx.fillStyle=tc.muted; cx.font='13px monospace';
+    cx.fillText('Cargá datos demo o un CSV para empezar.', 20, 30);
+    return;
+  }
+  const padR=64, padB=20, padT=8, padL=6;
+  const plotW=w-padR-padL, plotH=h-padB-padT;
+  const {isNativeTF, dispBars, start, end} = computeDispBarsWindow();
+  const vis=dispBars.slice(start, end+1);
+  let hi=-1e18, lo=1e18;
+  for(const b of vis){ hi=Math.max(hi,b.h); lo=Math.min(lo,b.l); }
+  // incluir niveles de dibujo/orden visibles en el rango de precio para que no queden fuera
+  const pad=(hi-lo)*0.08||1; hi+=pad; lo-=pad;
+  // zoom manual del eje de precio (arrastre sobre el eje derecho o rueda con Shift) — se aplica sobre el auto-fit
+  if(state.yScale && state.yScale!==1){
+    const mid=(hi+lo)/2; const range=(hi-lo)*state.yScale;
+    hi=mid+range/2; lo=mid-range/2;
+  }
+  const n=state.view;
+  const bw=plotW/n;
+  const iToX=(i)=> padL + (i-start)*bw + bw*0.5;
+  const pToY=(p)=> padT + (hi-p)/(hi-lo)*plotH;
+  const xToI=(x)=> Math.round((x-padL)/bw + start - 0.5);
+  const yToP=(y)=> hi - (y-padT)/plotH*(hi-lo);
+  state.proj={iToX,pToY,xToI,yToP,start,end,hi,lo,padL,padT,plotW,plotH,bw,w,h,padR,dispBars,isNativeTF};
+
+  // grid + eje precio
+  cx.strokeStyle=tc.grid; cx.fillStyle=tc.axis; cx.font='10px monospace'; cx.lineWidth=1;
+  const ticks=6;
+  for(let k=0;k<=ticks;k++){
+    const p=lo+(hi-lo)*k/ticks; const y=pToY(p);
+    cx.beginPath(); cx.moveTo(padL,y); cx.lineTo(padL+plotW,y); cx.stroke();
+    cx.fillText(p.toFixed(2), padL+plotW+6, y+3);
+  }
+  // eje de tiempo: fecha una vez por día en intradía + horas espaciadas; en timeframes diarios o mayores
+  // cada barra YA es un día distinto, así que ahí las fechas compiten por espacio como cualquier etiqueta
+  // (si no, se amontonan al achicar el chart o alejar el zoom).
+  const chartTF = state.chartTF || state.nativeMinutes;
+  const dailyView = chartTF>=1440;
+  const minLabelPx=58;
+  const stepBars=Math.max(1, Math.round(minLabelPx/bw));
+  let prevDay = start>0 ? dispBars[start-1].day : null; // detecta el cambio de día aunque la ventana visible empiece a mitad de un día
+  let lastLabelEndX=-Infinity;
+  cx.font='10px monospace';
+  for(let k=0;k<vis.length;k++){
+    const b=vis[k];
+    const isDayStart = !dailyView && b.day!==prevDay;
+    prevDay=b.day;
+    const x=iToX(start+k);
+    if(isDayStart){ // la línea separadora de día siempre se dibuja: es fina, no compite por espacio como el texto
+      cx.strokeStyle=tc.sep;
+      cx.beginPath(); cx.moveTo(x,padT); cx.lineTo(x,padT+plotH); cx.stroke();
+    }
+    const isLabelStep = isDayStart || dailyView || (k%stepBars===0);
+    if(!isLabelStep) continue;
+    const isDateFmt = isDayStart || dailyView;
+    const text = isDateFmt ? b.day.slice(5) : fmtTime(b.t);
+    const tw = cx.measureText(text).width;
+    if(x-lastLabelEndX < tw+8) continue; // anti-amontonamiento por ancho REAL del texto, no una estimación fija
+    cx.fillStyle = isDateFmt ? tc.sepLbl : tc.axis;
+    cx.fillText(text, isDateFmt ? x+2 : x-tw/2, padT+plotH+13);
+    lastLabelEndX = x+tw;
+  }
+
+  // velas
+  for(let k=0;k<vis.length;k++){
+    const b=vis[k]; const i=start+k; const x=iToX(i);
+    const up=b.c>=b.o; cx.strokeStyle=up?'#26a65b':'#e0524f'; cx.fillStyle=up?'#26a65b':'#e0524f';
+    cx.beginPath(); cx.moveTo(x, pToY(b.h)); cx.lineTo(x, pToY(b.l)); cx.stroke();
+    const yo=pToY(b.o), yc=pToY(b.c);
+    const top=Math.min(yo,yc); const hgt=Math.max(1,Math.abs(yc-yo));
+    cx.fillRect(x-bw*0.32, top, bw*0.64, hgt);
+  }
+
+  // indicadores sobre el precio (se calculan sobre todo dispBars hasta 'end' para tener historia
+  // suficiente, aunque solo se dibuje el tramo visible)
+  const ind=state.indicators;
+  if(ind.sma.on || ind.boll.on){
+    const closesAll=dispBars.slice(0,end+1).map(b=>b.c);
+    if(ind.boll.on){
+      const {upper,lower}=computeBollinger(closesAll, ind.boll.period, ind.boll.mult);
+      drawIndicatorLine(upper, start, end, iToX, pToY, '#9c6ade');
+      drawIndicatorLine(lower, start, end, iToX, pToY, '#9c6ade');
+    }
+    if(ind.sma.on){
+      const smaArr=computeSMA(closesAll, ind.sma.period);
+      drawIndicatorLine(smaArr, start, end, iToX, pToY, '#f0b429');
+    }
+  }
+
+  // línea de precio actual
+  const cp=curPx(); const ycp=pToY(cp);
+  cx.strokeStyle='#3fa9f5'; cx.setLineDash([3,3]);
+  cx.beginPath(); cx.moveTo(padL,ycp); cx.lineTo(padL+plotW,ycp); cx.stroke(); cx.setLineDash([]);
+  cx.fillStyle='#3fa9f5'; cx.fillRect(padL+plotW, ycp-7, padR-6, 14);
+  cx.fillStyle='#04121f'; cx.fillText(cp.toFixed(2), padL+plotW+4, ycp+3);
+
+  // posición: entry / SL / TP — SOLO de la cuenta seleccionada (cada cuenta puede tener la suya)
+  const selAccForChart=activeAcct();
+  const p=selAccForChart? selAccForChart.position : null;
+  if(p){
+    const ye=pToY(p.entry);
+    cx.strokeStyle=p.side>0?'#26a65b':'#e0524f'; cx.setLineDash([6,2]);
+    cx.beginPath(); cx.moveTo(padL,ye); cx.lineTo(padL+plotW,ye); cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle=p.side>0?'#26a65b':'#e0524f';
+    cx.fillText((p.side>0?'LONG ':'SHORT ')+p.qty+' @'+p.entry.toFixed(2), padL+6, ye-4);
+    if(p.sl!=null){ const y=pToY(p.sl); cx.strokeStyle='#e0524f'; cx.setLineDash([2,2]);
+      cx.beginPath(); cx.moveTo(padL,y); cx.lineTo(padL+plotW,y); cx.stroke(); cx.setLineDash([]);
+      cx.fillStyle='#e0524f'; cx.fillText('SL', padL+plotW-24, y-3); }
+    if(p.tp!=null){ const y=pToY(p.tp); cx.strokeStyle='#26a65b'; cx.setLineDash([2,2]);
+      cx.beginPath(); cx.moveTo(padL,y); cx.lineTo(padL+plotW,y); cx.stroke(); cx.setLineDash([]);
+      cx.fillStyle='#26a65b'; cx.fillText('TP', padL+plotW-24, y-3); }
+  }
+  // órdenes de trabajo — solo las de la cuenta seleccionada
+  for(const o of state.orders){
+    if(!selAccForChart || o.accId!==selAccForChart.id) continue;
+    const y=pToY(o.px); cx.strokeStyle='#e0a53f'; cx.setLineDash([1,3]);
+    cx.beginPath(); cx.moveTo(padL,y); cx.lineTo(padL+plotW,y); cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle='#e0a53f'; cx.fillText((o.side>0?'B ':'S ')+o.type+' '+o.px.toFixed(2), padL+6, y-3);
+  }
+
+  // dibujos — solo en el timeframe nativo (están anclados a índice de barra nativa)
+  if(isNativeTF){
+    for(const d of state.drawings) drawDrawing(d, d.id===state.selDraw);
+    if(state.drawTmp) drawDrawing(state.drawTmp, true);
+  } else if(state.drawings.length){
+    cx.fillStyle=tc.muted; cx.font='10px monospace';
+    cx.fillText('Dibujos ocultos en este timeframe (volvé al nativo '+tfLabel(state.nativeMinutes)+' para verlos/editarlos)', padL+6, padT+14);
+  }
+
+  // crosshair + OHLC
+  if(state.mouse.in){
+    const mx=state.mouse.x, my=state.mouse.y;
+    cx.strokeStyle=tc.cross; cx.setLineDash([2,2]);
+    cx.beginPath(); cx.moveTo(mx,padT); cx.lineTo(mx,padT+plotH); cx.stroke();
+    cx.beginPath(); cx.moveTo(padL,my); cx.lineTo(padL+plotW,my); cx.stroke(); cx.setLineDash([]);
+    const pr=yToP(my);
+    cx.fillStyle=tc.labelBg; cx.fillRect(padL+plotW, my-7, padR-6, 14);
+    cx.fillStyle=tc.labelFg; cx.fillText(pr.toFixed(2), padL+plotW+4, my+3);
+  }
+}
+
+function drawDrawing(d, sel){
+  const {iToX,pToY,padL,plotW,padT,plotH}=state.proj;
+  const baseColor = d.color||'#c0a0f0';
+  const baseWidth = d.lineWidth||1;
+  cx.lineWidth = sel ? baseWidth+1.2 : baseWidth;
+  cx.strokeStyle = sel ? '#fff' : baseColor;
+  cx.setLineDash(d.dash==='dashed' ? [7,4] : d.dash==='dotted' ? [1.5,3.5] : []);
+  if(d.type==='hline'){
+    const y=pToY(d.a.p);
+    cx.beginPath(); cx.moveTo(padL,y); cx.lineTo(padL+plotW,y); cx.stroke();
+    cx.setLineDash([]);
+    cx.fillStyle=cx.strokeStyle; cx.fillText((d.locked?'🔒 ':'')+d.a.p.toFixed(2), padL+4, y-3);
+    return;
+  }
+  const ax=iToX(d.a.i), ay=pToY(d.a.p);
+  const bx=iToX(d.b.i), by=pToY(d.b.p);
+  if(d.type==='trend'){
+    cx.beginPath(); cx.moveTo(ax,ay); cx.lineTo(bx,by); cx.stroke();
+  } else if(d.type==='ray'){
+    const dx=bx-ax, dy=by-ay; const scale=(padL+plotW-ax)/(dx||1e-6);
+    const ex=dx>0? padL+plotW : ax + dx*4; const ey= ay + dy*((ex-ax)/(dx||1e-6));
+    cx.beginPath(); cx.moveTo(ax,ay); cx.lineTo(ex,ey); cx.stroke();
+  } else if(d.type==='rect'){
+    cx.globalAlpha=0.12; cx.fillStyle=cx.strokeStyle;
+    cx.fillRect(Math.min(ax,bx),Math.min(ay,by),Math.abs(bx-ax),Math.abs(by-ay));
+    cx.globalAlpha=1; cx.strokeRect(Math.min(ax,bx),Math.min(ay,by),Math.abs(bx-ax),Math.abs(by-ay));
+  } else if(d.type==='fib'){
+    const levels=[0,0.236,0.382,0.5,0.618,0.786,1];
+    const p0=d.a.p, p1=d.b.p;
+    for(const lv of levels){
+      const p=p0+(p1-p0)*lv; const y=pToY(p);
+      cx.strokeStyle=sel?'#fff':baseColor; cx.globalAlpha=0.8;
+      cx.beginPath(); cx.moveTo(Math.min(ax,bx),y); cx.lineTo(Math.max(ax,bx),y); cx.stroke();
+      cx.globalAlpha=1; cx.fillStyle=baseColor;
+      cx.fillText((lv*100).toFixed(1)+'%  '+p.toFixed(2), Math.max(ax,bx)+4, y+3);
+    }
+  }
+  cx.setLineDash([]);
+  if(d.locked){ cx.fillStyle=baseColor; cx.fillText('🔒', ax+4, ay-8); }
+  // handles
+  if(sel && d.type!=='hline'){
+    cx.fillStyle='#fff';
+    cx.fillRect(ax-3,ay-3,6,6); cx.fillRect(bx-3,by-3,6,6);
+  }
+}
+
+/* ============================================================
+   INTERACCIÓN DE DIBUJO
+   ============================================================ */
+function relPos(e){
+  const r=chart.getBoundingClientRect();
+  return {x:e.clientX-r.left, y:e.clientY-r.top};
+}
+// devuelve 'y' si el mouse está sobre la franja del eje de precio (derecha),
+// 'x' si está sobre la franja del eje de tiempo (abajo), o null si está en el área de trading/dibujo.
+function axisZoneAt(m){
+  const pr=state.proj; if(!pr) return null;
+  if(m.x >= pr.padL+pr.plotW) return 'y';
+  if(m.y >= pr.padT+pr.plotH) return 'x';
+  return null;
+}
+function maxViewBars(){ return Math.max(20, state.bars.length); }
+chart.addEventListener('mousemove', e=>{
+  const m=relPos(e); state.mouse.x=m.x; state.mouse.y=m.y; state.mouse.in=true;
+  if(!state.proj) return;
+
+  if(state.axisDrag){
+    hideCandleTooltip();
+    if(state.axisDrag.type==='y'){
+      const dy = m.y - state.axisDrag.startY;
+      const factor = Math.exp(dy*0.005); // arrastrar hacia abajo achica el rango (zoom in); hacia arriba lo amplía
+      state.yScale = Math.max(0.1, Math.min(10, state.axisDrag.startScale*factor));
+    } else if(state.axisDrag.type==='x'){
+      const dx = m.x - state.axisDrag.startX;
+      const factor = Math.exp(-dx*0.01); // arrastrar a la derecha achica la ventana (zoom in); a la izquierda la amplía
+      state.view = Math.max(20, Math.min(maxViewBars(), Math.round(state.axisDrag.startView*factor)));
+    }
+    drawChart();
+    return;
+  }
+
+  // cursor dinámico según la zona (franja de eje vs. área de trading)
+  const zone=axisZoneAt(m);
+  chart.style.cursor = zone==='y' ? 'ns-resize' : zone==='x' ? 'ew-resize' : (state.tool==='cursor' ? 'default' : 'crosshair');
+  if(zone){ hideCandleTooltip(); return; } // no procesar crosshair/tooltip/dibujo mientras el mouse está sobre una franja de eje
+
+  // data box de la vela bajo el cursor (fecha, hora, OHLC) — usa las barras que se están mostrando (nativas o agregadas)
+  const i=state.proj.xToI(m.x);
+  const dispBars=state.proj.dispBars;
+  if(i>=0 && i<dispBars.length && i<=state.proj.end){
+    showCandleTooltip(m, dispBars[i]);
+  } else {
+    hideCandleTooltip();
+  }
+  if(!state.proj.isNativeTF) return; // en TF agregado no se editan dibujos (ver nota en el chart)
+  if(state.drawTmp){
+    state.drawTmp.b={i:clampI(state.proj.xToI(m.x)), p:state.proj.yToP(m.y)};
+    drawChart();
+  } else if(state.dragging){
+    const d=state.dragging.d;
+    const di=clampI(state.proj.xToI(m.x))-state.dragging.oi;
+    const dp=state.proj.yToP(m.y)-state.dragging.op;
+    d.a.i+=di; d.b&&(d.b.i+=di); d.a.p+=dp; d.b&&(d.b.p+=dp);
+    state.dragging.oi=clampI(state.proj.xToI(m.x)); state.dragging.op=state.proj.yToP(m.y);
+    drawChart();
+  }
+});
+function showCandleTooltip(m, b){
+  const tip=document.getElementById('candleTooltip');
+  tip.innerHTML=`
+    <div class="row"><span class="k">Fecha</span><span>${b.day}</span></div>
+    <div class="row"><span class="k">Hora</span><span>${fmtTime(b.t)}</span></div>
+    <div class="row"><span class="k">O</span><span>${b.o.toFixed(2)}</span></div>
+    <div class="row"><span class="k">H</span><span>${b.h.toFixed(2)}</span></div>
+    <div class="row"><span class="k">L</span><span>${b.l.toFixed(2)}</span></div>
+    <div class="row"><span class="k">C</span><span>${b.c.toFixed(2)}</span></div>`;
+  const r=chart.getBoundingClientRect();
+  const tw=128, th=120;
+  let left=m.x+14, top=m.y+14;
+  if(left+tw>r.width) left=m.x-tw-10;
+  if(top+th>r.height) top=m.y-th-10;
+  tip.style.left=left+'px'; tip.style.top=top+'px'; tip.style.display='block';
+}
+function hideCandleTooltip(){ document.getElementById('candleTooltip').style.display='none'; }
+chart.addEventListener('mouseleave', ()=>{ state.mouse.in=false; hideCandleTooltip(); drawChart(); });
+chart.addEventListener('mousedown', e=>{
+  if(!state.proj) return;
+  const m=relPos(e);
+  const zone=axisZoneAt(m);
+  if(zone==='y'){ state.axisDrag={type:'y', startY:m.y, startScale:state.yScale}; return; }
+  if(zone==='x'){ state.axisDrag={type:'x', startX:m.x, startView:state.view}; return; }
+  if(!state.proj.isNativeTF) return; // dibujos solo se crean/editan en el timeframe nativo
+  const i=clampI(state.proj.xToI(m.x)); const p=state.proj.yToP(m.y);
+  if(state.tool==='cursor'){
+    const hit=hitTest(m.x,m.y);
+    state.selDraw = hit? hit.id : null;
+    if(hit){
+      if(!hit.locked) state.dragging={d:hit, oi:i, op:p};
+      showDrawToolbar(hit);
+    } else {
+      hideDrawToolbar();
+    }
+    drawChart(); return;
+  }
+  if(state.tool==='hline'){
+    state.drawings.push({id:state.did++, type:'hline', a:{i,p}});
+    state.selDraw=null; switchToCursorTool(); drawChart(); return;
+  }
+  state.drawTmp={id:state.did++, type:state.tool, a:{i,p}, b:{i,p}};
+});
+chart.addEventListener('dblclick', e=>{
+  if(!state.proj) return;
+  const m=relPos(e); const zone=axisZoneAt(m);
+  if(zone==='y'){ state.yScale=1; drawChart(); }
+  else if(zone==='x'){ state.view=140; drawChart(); }
+});
+chart.addEventListener('wheel', e=>{
+  if(!state.proj) return;
+  e.preventDefault();
+  const factor = e.deltaY>0 ? 1.12 : 1/1.12;
+  state.view = Math.max(20, Math.min(maxViewBars(), Math.round(state.view*factor)));
+  drawChart();
+}, {passive:false});
+window.addEventListener('mouseup', ()=>{
+  state.axisDrag=null;
+  if(state.drawTmp){
+    // descartar dibujos degenerados
+    if(Math.abs(state.drawTmp.a.i-state.drawTmp.b.i)+Math.abs(state.drawTmp.a.p-state.drawTmp.b.p)>0.001)
+      state.drawings.push(state.drawTmp);
+    state.drawTmp=null; switchToCursorTool(); drawChart();
+  }
+  state.dragging=null;
+});
+function switchToCursorTool(){
+  state.tool='cursor';
+  document.querySelectorAll('.tool').forEach(x=>x.classList.toggle('on', x.dataset.tool==='cursor'));
+}
+function clampI(i){ return Math.max(0, Math.min(state.bars.length-1, i)); }
+function hitTest(x,y){
+  const pr=state.proj; if(!pr) return null;
+  for(let k=state.drawings.length-1;k>=0;k--){
+    const d=state.drawings[k];
+    if(d.type==='hline'){ if(Math.abs(pr.pToY(d.a.p)-y)<5) return d; continue; }
+    const ax=pr.iToX(d.a.i), ay=pr.pToY(d.a.p), bx=pr.iToX(d.b.i), by=pr.pToY(d.b.p);
+    if(d.type==='rect'){
+      const x0=Math.min(ax,bx),x1=Math.max(ax,bx),y0=Math.min(ay,by),y1=Math.max(ay,by);
+      if(x>=x0-4&&x<=x1+4&&y>=y0-4&&y<=y1+4 && (Math.abs(x-x0)<5||Math.abs(x-x1)<5||Math.abs(y-y0)<5||Math.abs(y-y1)<5)) return d;
+      continue;
+    }
+    if(d.type==='fib'){ if(x>=Math.min(ax,bx)-4&&x<=Math.max(ax,bx)+4){ // cerca de cualquier nivel
+        const lv=[0,0.236,0.382,0.5,0.618,0.786,1];
+        for(const l of lv){ const py=pr.pToY(d.a.p+(d.b.p-d.a.p)*l); if(Math.abs(py-y)<5) return d; } }
+      continue; }
+    if(distToSeg(x,y,ax,ay,bx,by)<6) return d;
+  }
+  return null;
+}
+function distToSeg(px,py,x1,y1,x2,y2){
+  const dx=x2-x1,dy=y2-y1; const L=dx*dx+dy*dy;
+  let t=L?((px-x1)*dx+(py-y1)*dy)/L:0; t=Math.max(0,Math.min(1,t));
+  const cxp=x1+t*dx, cyp=y1+t*dy; return Math.hypot(px-cxp,py-cyp);
+}
+
+// ---------- barra flotante de edición de dibujo (color / ancho / estilo / bloqueo / borrar) ----------
+function getSelDrawing(){ return state.drawings.find(d=>d.id===state.selDraw); }
+function showDrawToolbar(d){
+  const tb=document.getElementById('drawToolbar');
+  if(!state.proj) return;
+  const x=state.proj.iToX(d.a.i), y=state.proj.pToY(d.a.p);
+  const r=chart.getBoundingClientRect();
+  let left=x-10, top=y-42;
+  if(left<0) left=4;
+  if(left+270>r.width) left=Math.max(4, r.width-274);
+  if(top<0) top=y+16;
+  tb.style.left=left+'px'; tb.style.top=top+'px'; tb.style.display='flex';
+  const col=d.color||'#c0a0f0', wid=String(d.lineWidth||1), dash=d.dash||'solid';
+  tb.querySelectorAll('.swatch').forEach(s=> s.classList.toggle('on', s.dataset.color===col));
+  tb.querySelectorAll('[data-width]').forEach(b=> b.classList.toggle('on', b.dataset.width===wid));
+  tb.querySelectorAll('[data-dash]').forEach(b=> b.classList.toggle('on', b.dataset.dash===dash));
+  document.getElementById('dtLock').textContent = d.locked ? '🔒' : '🔓';
+}
+function hideDrawToolbar(){ document.getElementById('drawToolbar').style.display='none'; }
+document.querySelectorAll('#drawToolbar .swatch').forEach(s=>{
+  s.onclick=()=>{ const d=getSelDrawing(); if(!d||d.locked) return; d.color=s.dataset.color; showDrawToolbar(d); drawChart(); };
+});
+document.querySelectorAll('#drawToolbar [data-width]').forEach(b=>{
+  b.onclick=()=>{ const d=getSelDrawing(); if(!d||d.locked) return; d.lineWidth=+b.dataset.width; showDrawToolbar(d); drawChart(); };
+});
+document.querySelectorAll('#drawToolbar [data-dash]').forEach(b=>{
+  b.onclick=()=>{ const d=getSelDrawing(); if(!d||d.locked) return; d.dash=b.dataset.dash; showDrawToolbar(d); drawChart(); };
+});
+document.getElementById('dtLock').onclick=()=>{
+  const d=getSelDrawing(); if(!d) return;
+  d.locked=!d.locked; if(d.locked) state.dragging=null;
+  showDrawToolbar(d); drawChart();
+};
+document.getElementById('dtDelete').onclick=()=>{
+  const d=getSelDrawing(); if(!d||d.locked) return;
+  state.drawings=state.drawings.filter(x=>x.id!==d.id);
+  state.selDraw=null; hideDrawToolbar(); drawChart();
+};
+
+/* ============================================================
+   RENDER PANELES
+   ============================================================ */
+function money(x){ const s=x<0?'-':''; return s+'$'+Math.abs(x).toLocaleString('en-US',{maximumFractionDigits:0}); }
+function statusBadge(acc){
+  if(acc.status==='challenge') return `<span class="badge b-p1">FASE ${acc.phaseIdx+1}</span>`;
+  if(acc.status==='blown' && acc.payouts>0) return `<span class="badge b-paid">COBRADA (quemada después)</span>`;
+  const map={funded:['FONDEADA','b-funded'],blown:['QUEMADA','b-blown'],paid:['COBRADA','b-paid'],paused:['PAUSADA','b-paused'],passed:['APROBADA','b-paid']};
+  const [t,c]=map[acc.status]||[acc.status,'b-p1'];
+  return `<span class="badge ${c}">${t}</span>`;
+}
+// a qué pestaña pertenece una cuenta (paused hereda la categoría de su estado previo, ya que es transitorio;
+// paid se agrupa con funded porque nació y vivió su vida como cuenta fondeada)
+function acctCategory(acc){
+  let s=acc.status;
+  if(s==='paused') s=acc.prevStatus||'challenge';
+  if(s==='paid' || s==='passed') return 'paid';
+  if(s==='funded') return 'funded';
+  // si se quemó pero ya había cobrado al menos una vez, cuenta como "cobrada" — "quemada" queda
+  // reservado a las que nunca llegaron a retirar nada.
+  if(s==='blown') return acc.payouts>0 ? 'paid' : 'blown';
+  return 'challenge';
+}
+function renderAccounts(){
+  const list=document.getElementById('acctList');
+  const counts={challenge:0, funded:0, paid:0, blown:0};
+  for(const acc of state.accounts) counts[acctCategory(acc)]++;
+  document.getElementById('tabCountChallenge').textContent=counts.challenge;
+  document.getElementById('tabCountFunded').textContent=counts.funded;
+  document.getElementById('tabCountPaid').textContent=counts.paid;
+  document.getElementById('tabCountBlown').textContent=counts.blown;
+  document.querySelectorAll('#mainAcctTabs .accttab').forEach(b=> b.classList.toggle('on', b.dataset.cat===state.acctFilter));
+
+  const visible=state.accounts.filter(acc=>acctCategory(acc)===state.acctFilter);
+  if(!visible.length){ list.innerHTML='<div class="hint">Sin cuentas en esta categoría.</div>'; return; }
+  if(list.children.length && !list.children[0].dataset.accid) list.innerHTML=''; // limpia el hint inicial
+
+  const seen=new Set();
+  for(const acc of visible){
+    seen.add(acc.id);
+    const tpl=tplOf(acc);
+    const rules=rulesFor(acc,tpl);
+    const notActivated = acc.status==='funded' && !acc.activated;
+    const thr = (rules && !notActivated)? thresholdOf(acc,rules) : null;
+    const ddRoom = thr!=null? acc.balance-thr : null;
+    const ddAmt = rules? rules.ddAmount : null;
+    const toTgt = (acc.status==='challenge' && rules)? targetBalOf(acc,rules)-acc.balance : null;
+    const pnl=acc.balance-acc.startBalance;
+    const dailyRoom = (rules && rules.dailyLoss>0 && !notActivated) ? rules.dailyLoss+acc.dailyPnl : null;
+    const progTgt = (acc.status==='challenge' && rules)? Math.max(0,Math.min(1,(acc.balance-acc.stageStartBalance)/rules.target)) : 1;
+    const progDD = (ddRoom!=null && ddAmt)? Math.max(0,Math.min(1, ddRoom/ddAmt)) : 0;
+    const eligible = acc.status==='funded' && acc.activated && tpl ? isPayoutEligible(acc,tpl) : false;
+
+    // reutilizo el mismo nodo DOM de la cuenta si ya existe (evita perder clicks durante el Play,
+    // que re-renderiza esta lista en cada barra): el listener de selección se pega UNA sola vez.
+    let div = list.querySelector('[data-accid="'+acc.id+'"]');
+    if(!div){
+      div=document.createElement('div');
+      div.dataset.accid=acc.id;
+      div.addEventListener('click',(e)=>{
+        if(e.target.dataset.act) return;
+        state.selAcct=acc.id; renderAccounts(); renderPosition(); drawChart(); renderAtmChips();
+      });
+    }
+    div.className='acct'+(acc.id===state.selAcct?' sel':'');
+    div.innerHTML=`
+      <div class="top"><span class="nm">${acc.name}</span>${statusBadge(acc)}</div>
+      <div class="mini" style="color:var(--muted)">${tpl?tpl.name:'(plantilla eliminada)'}</div>
+      <div class="kv"><span class="mini">Balance</span><span class="mini"><b>${money(acc.balance)}</b> (${pnl>=0?'+':''}${money(pnl)})</span></div>
+      ${notActivated?'':`<div class="kv"><span class="mini">PnL de hoy</span><span class="mini ${acc.dailyPnl>=0?'pos':'neg'}">${(acc.dailyPnl>=0?'+':'')+money(acc.dailyPnl)}</span></div>`}
+      ${notActivated?`<div class="mini" style="color:var(--green)">✅ Challenge aprobado — tocá "Fondear" para activar la cuenta y empezar a operar en fondeada</div>`:''}
+      ${ddRoom!=null?`<div class="kv"><span class="mini">DD room</span><span class="mini ${ddRoom<ddAmt*0.25?'neg':''}">${money(ddRoom)} / ${money(ddAmt)}</span></div>`:''}
+      ${acc.status==='challenge'?`<div class="kv"><span class="mini">A objetivo</span><span class="mini">${money(Math.max(0,toTgt))}</span></div>`:''}
+      ${dailyRoom!=null?`<div class="kv"><span class="mini">Daily room</span><span class="mini ${dailyRoom<0?'neg':''}">${money(dailyRoom)}</span></div>`:''}
+      ${(rules && rules.consistencyOn && !notActivated)?(()=>{ const days=acc.dayProfits.concat([acc.dailyPnl]); const total=days.reduce((s,v)=>s+v,0);
+          const best=days.length?Math.max(...days):0; const pct= total>0? (best/total*100):0;
+          const bad = total>0 && pct>rules.consistencyPct;
+          return `<div class="kv"><span class="mini">Consistencia</span><span class="mini ${bad?'neg':''}">mejor día ${pct.toFixed(0)}% / tope ${rules.consistencyPct}%</span></div>`; })():''}
+      ${(acc.status==='funded' && acc.activated && (tpl.funded.minDays>0||tpl.funded.minCycleSum>0))?
+        `<div class="kv"><span class="mini">Elegibilidad retiro</span><span class="mini ${eligible?'pos':'neg'}">${acc.cycleValidDays}/${tpl.funded.minDays||0} días de $${tpl.funded.minDayProfit||0}+ · ${money(acc.cycleProfitSum)}/${money(tpl.funded.minCycleSum||0)}</span></div>`:''}
+      ${acc.position?`<div class="kv"><span class="mini">Posición</span><span class="mini ${acc.position.side>0?'pos':'neg'}">${acc.position.side>0?'LONG':'SHORT'} ${acc.position.qty} @ ${acc.position.entry.toFixed(2)}</span></div>`:''}
+      ${acc.status==='paused'?`<div class="mini" style="color:var(--amber)">Pausada por límite diario — se reactiva al saltar de día</div>`:''}
+      <div class="bars">
+        <div class="bar" title="progreso a objetivo"><div class="fill" style="width:${progTgt*100}%;background:var(--green)"></div></div>
+        <div class="bar" title="colchón de drawdown"><div class="fill" style="width:${progDD*100}%;background:var(--amber)"></div></div>
+      </div>
+      <div class="row" style="margin-top:6px">
+        ${notActivated?`<button data-act="activate" data-id="${acc.id}" class="on" style="flex:1">🚀 Fondear</button>`:''}
+        ${(acc.status==='funded' && acc.activated)?`<button data-act="pay" data-id="${acc.id}" style="flex:1" ${eligible?'':'disabled'}>💵 Cobrar</button>`:''}
+        ${(acc.status==='blown'||acc.status==='paid')&&tpl?`<button data-act="rebuy" data-id="${acc.id}" style="flex:1">↻ Recomprar</button>`:''}
+        ${acc.payouts>0?`<span class="mini" style="align-self:center">cobrado ${money(acc.payouts)}</span>`:''}
+      </div>`;
+    div.querySelectorAll('button[data-act]').forEach(b=>{
+      b.onclick=()=>{
+        if(b.dataset.act==='activate') activateFundedAccount(acc);
+        if(b.dataset.act==='pay') collectPayout(acc);
+        if(b.dataset.act==='rebuy') buyAccount(tplOf(acc), true);
+      };
+    });
+    list.appendChild(div); // conserva el orden; si el nodo ya estaba, solo lo reubica (no lo recrea)
+  }
+  [...list.children].forEach(el=>{ if(el.dataset.accid && !seen.has(el.dataset.accid)) el.remove(); });
+}
+function renderStats(){
+  const bought=state.accounts.length;
+  const funded=state.accounts.filter(a=>a.status==='funded').length;
+  const blown=state.accounts.filter(a=>a.status==='blown').length;
+  const cost=state.ledger.filter(l=>l.type==='cost').reduce((s,l)=>s+l.amount,0);
+  const payout=state.ledger.filter(l=>l.type==='payout').reduce((s,l)=>s+l.amount,0);
+  const net=cost+payout;
+  document.getElementById('stBought').textContent=bought;
+  document.getElementById('stFunded').textContent=funded;
+  document.getElementById('stBlown').textContent=blown;
+  document.getElementById('stCost').textContent=money(cost);
+  document.getElementById('stPayout').textContent=money(payout);
+  const netEl=document.getElementById('netPnl');
+  netEl.textContent=(net>=0?'+':'')+money(net);
+  netEl.className='v stat-net '+(net>=0?'pos':'neg');
+  document.getElementById('stTrade').textContent=(state.tradingPnl>=0?'+':'')+money(state.tradingPnl);
+  drawBusinessEquity();
+}
+function drawBusinessEquity(){
+  const cv=document.getElementById('beq'); const {w,h}=fitCanvas(cv); const g=cv.getContext('2d');
+  const tc=TC();
+  g.clearRect(0,0,w,h);
+  const pts=[{x:0,y:0}]; let cum=0;
+  for(const l of state.ledger){ cum+=l.amount; pts.push({v:cum}); }
+  if(pts.length<2){ g.fillStyle=tc.muted; g.font='10px monospace'; g.fillText('curva de negocio',8,h/2); return; }
+  const vals=pts.map((p,i)=> i===0?0:p.v);
+  let mn=Math.min(0,...vals), mx=Math.max(0,...vals); if(mx===mn)mx=mn+1;
+  const X=i=> 4 + i/(vals.length-1)*(w-8);
+  const Y=v=> h-4 - (v-mn)/(mx-mn)*(h-8);
+  // cero
+  g.strokeStyle=tc.sep; g.beginPath(); g.moveTo(4,Y(0)); g.lineTo(w-4,Y(0)); g.stroke();
+  g.strokeStyle= vals[vals.length-1]>=0?'#26a65b':'#e0524f'; g.lineWidth=1.5;
+  g.beginPath();
+  vals.forEach((v,i)=>{ const x=X(i),y=Y(v); i?g.lineTo(x,y):g.moveTo(x,y); });
+  g.stroke();
+  g.fillStyle=g.strokeStyle; g.font='10px monospace';
+  g.fillText((vals[vals.length-1]>=0?'+':'')+'$'+Math.round(vals[vals.length-1]), 6, 12);
+}
+
+/* ============================================================
+   TRACKER: cuentas de la corrida, registro por cuenta, equity detallado, estadísticas
+   ============================================================ */
+// las 5 métricas del tracker. everFunded/everReachedCushion/payouts son permanentes (no se resetean
+// aunque la cuenta después se queme o cobre de nuevo), así que las tasas reflejan toda la corrida.
+function computeTrackerStats(){
+  const accounts=state.accounts;
+  const total=accounts.length;
+  const everFundedCount=accounts.filter(a=>a.everFunded).length;
+  const payoutCount=accounts.filter(a=>a.payouts>0).length;
+  const cushionCount=accounts.filter(a=>a.everReachedCushion).length;
+  const extractionCount=accounts.filter(a=>a.everReachedCushion && a.payouts>0).length;
+  const netTotal=state.ledger.reduce((s,l)=>s+l.amount,0);
+  return {
+    total, everFundedCount, payoutCount, cushionCount, extractionCount, netTotal,
+    approvalRate: total>0 ? everFundedCount/total : 0,
+    payoutRate: total>0 ? payoutCount/total : 0,
+    cushionRate: everFundedCount>0 ? cushionCount/everFundedCount : 0,
+    extractionRate: cushionCount>0 ? extractionCount/cushionCount : 0,
+    evPerAccount: total>0 ? netTotal/total : 0,
+  };
+}
+function renderTrackerAcctList(){
+  const list=document.getElementById('trackerAcctList'); if(!list) return;
+  const counts={challenge:0, funded:0, paid:0, blown:0};
+  for(const acc of state.accounts) counts[acctCategory(acc)]++;
+  document.getElementById('trkCountChallenge').textContent=counts.challenge;
+  document.getElementById('trkCountFunded').textContent=counts.funded;
+  document.getElementById('trkCountPaid').textContent=counts.paid;
+  document.getElementById('trkCountBlown').textContent=counts.blown;
+  document.querySelectorAll('#trackerCatTabs .accttab').forEach(b=> b.classList.toggle('on', b.dataset.cat===state.trackerCatFilter));
+
+  const visible=state.accounts.filter(a=>acctCategory(a)===state.trackerCatFilter);
+  if(!visible.length){ list.innerHTML='<div class="hint">Sin cuentas en esta categoría todavía.</div>'; return; }
+  if(list.children.length && !list.children[0].dataset.accid) list.innerHTML='';
+  const seen=new Set();
+  for(const acc of visible){
+    seen.add(acc.id);
+    let div=list.querySelector('[data-accid="'+acc.id+'"]');
+    if(!div){
+      div=document.createElement('div');
+      div.dataset.accid=acc.id;
+      div.addEventListener('click', ()=>{ state.trackerSelAcct=acc.id; renderTrackerAcctList(); renderTrackerLogPane(); });
+      list.appendChild(div);
+    }
+    div.className='acct'+(acc.id===state.trackerSelAcct?' sel':'');
+    const tpl=tplOf(acc);
+    div.innerHTML=`
+      <div class="top"><span class="nm">${acc.name}</span>${statusBadge(acc)}</div>
+      <div class="mini" style="color:var(--muted)">${tpl?tpl.name:'(plantilla eliminada)'}</div>
+      <div class="kv"><span class="mini">Balance</span><span class="mini">${money(acc.balance)}</span></div>
+      <div class="mini">${acc.tradeLog.length} operacion${acc.tradeLog.length===1?'':'es'}</div>`;
+    list.appendChild(div); // conserva el orden; si ya estaba, solo lo reubica (no lo recrea)
+  }
+  [...list.children].forEach(el=>{ if(el.dataset.accid && !seen.has(el.dataset.accid)) el.remove(); });
+}
+function renderTrackerLogPane(){
+  const el=document.getElementById('trackerPaneLog'); if(!el) return;
+  const acc=state.accounts.find(a=>a.id===state.trackerSelAcct);
+  if(!acc){ el.innerHTML='<div class="hint">Seleccioná una cuenta de la izquierda para ver qué ATM se ejecutó, a qué hora y con qué resultado.</div>'; return; }
+  const milestones=acc.milestones||[];
+  if(!acc.tradeLog.length && !milestones.length){ el.innerHTML=`<h3 style="margin-top:0">${acc.name}</h3><div class="hint">Todavía no tiene operaciones ni hitos registrados.</div>`; return; }
+
+  // línea de tiempo única: mezcla operaciones cerradas e hitos (challenge aprobado, colchón, payout),
+  // ordenados cronológicamente, para que se vea todo en el mismo orden en que pasó de verdad.
+  const rows=[
+    ...acc.tradeLog.map(t=>({kind:'trade', time:t.exitTime, data:t})),
+    ...milestones.map(m=>({kind:'milestone', time:m.time, data:m})),
+  ].sort((a,b)=> new Date(a.time||0) - new Date(b.time||0));
+
+  const fmtT=(iso)=> iso ? (iso.slice(0,10)+' '+iso.slice(11,16)) : '—';
+  const milestoneLabel=(m)=>{
+    if(m.type==='approved') return `✅ <b>CHALLENGE APROBADO</b> — balance ${money(m.balance)}`;
+    if(m.type==='cushion') return `🛏️ <b>COLCHÓN LOGRADO</b> — balance ${money(m.balance)}`;
+    if(m.type==='payout'){
+      const cierre = m.closed ? ' — cuenta cerrada' : '';
+      return `💰 <b>PAYOUT COBRADO</b> — retiro ${money(m.withdrawal)} (cobrás ${money(m.cashToTrader)} tras split) — balance ${money(m.balanceBefore)} → ${money(m.balance)}${cierre}`;
+    }
+    return '';
+  };
+
+  let rowsHtml='';
+  for(let i=rows.length-1;i>=0;i--){ // más reciente primero
+    const r=rows[i];
+    if(r.kind==='milestone'){
+      rowsHtml+=`<tr class="tracker-milestone-row"><td colspan="8">${fmtT(r.time)} · ${milestoneLabel(r.data)}</td></tr>`;
+    } else {
+      const t=r.data;
+      rowsHtml+=`<tr>
+        <td>${fmtT(t.exitTime)}</td>
+        <td>${t.atmName||'Manual'}</td>
+        <td class="${t.side>0?'pos':'neg'}">${t.side>0?'LONG':'SHORT'} ${t.qty}</td>
+        <td>${t.entry.toFixed(2)}</td>
+        <td>${t.exit.toFixed(2)}</td>
+        <td class="${t.pnl>=0?'pos':'neg'}">${(t.pnl>=0?'+':'')+money(t.pnl)}</td>
+        <td>${t.balance!=null? money(t.balance) : '—'}</td>
+        <td>${t.reason}</td>
+      </tr>`;
+    }
+  }
+  el.innerHTML=`<h3 style="margin-top:0">${acc.name} — ${acc.tradeLog.length} operacion${acc.tradeLog.length===1?'':'es'}</h3>
+    <table class="tracker-table"><thead><tr><th>Hora</th><th>ATM</th><th>Lado</th><th>Entrada</th><th>Salida</th><th>Resultado</th><th>Balance</th><th>Motivo</th></tr></thead>
+    <tbody>${rowsHtml}</tbody></table>`;
+}
+function renderTrackerStatsPane(){
+  const el=document.getElementById('trackerPaneStats'); if(!el) return;
+  const s=computeTrackerStats();
+  const pct=(x)=> (x*100).toFixed(1)+'%';
+  el.innerHTML=`<div class="tracker-stat-grid">
+      <div class="tracker-stat-card"><div class="mini">Tasa de aprobación (challenge → fondeada)</div>
+        <div class="tracker-stat-num">${pct(s.approvalRate)}</div>
+        <div class="mini">${s.everFundedCount} / ${s.total} cuentas compradas</div></div>
+      <div class="tracker-stat-card"><div class="mini">Tasa de payout (compradas → cobran algo)</div>
+        <div class="tracker-stat-num">${pct(s.payoutRate)}</div>
+        <div class="mini">${s.payoutCount} / ${s.total} cuentas compradas</div></div>
+      <div class="tracker-stat-card"><div class="mini">Tasa de colchón (fondeadas → logran el objetivo de día 1)</div>
+        <div class="tracker-stat-num">${pct(s.cushionRate)}</div>
+        <div class="mini">${s.cushionCount} / ${s.everFundedCount} cuentas fondeadas</div></div>
+      <div class="tracker-stat-card"><div class="mini">Tasa de extracción (con colchón → cobran algo)</div>
+        <div class="tracker-stat-num">${pct(s.extractionRate)}</div>
+        <div class="mini">${s.extractionCount} / ${s.cushionCount} cuentas con colchón</div></div>
+      <div class="tracker-stat-card" style="grid-column:1/3">
+        <div class="mini">Esperanza matemática por cuenta comprada</div>
+        <div class="tracker-stat-num ${s.evPerAccount>=0?'pos':'neg'}">${(s.evPerAccount>=0?'+':'')+money(s.evPerAccount)}</div>
+        <div class="mini">neto total del negocio ${money(s.netTotal)} sobre ${s.total} cuentas compradas</div></div>
+    </div>`;
+}
+function drawTrackerEquity(){
+  const cv=document.getElementById('trackerEquityCanvas'); if(!cv) return;
+  const {w,h}=fitCanvas(cv); const g=cv.getContext('2d'); const tc=TC();
+  g.clearRect(0,0,w,h);
+  const padL=56, padR=16, padT=16, padB=8;
+  const plotW=w-padL-padR, plotH=h-padT-padB;
+  let cum=0; const pts=[0];
+  for(const l of state.ledger){ cum+=l.amount; pts.push(cum); }
+  if(pts.length<2){ g.fillStyle=tc.muted; g.font='12px monospace'; g.fillText('Sin movimientos todavía en el negocio', padL, padT+20); return; }
+  let mn=Math.min(0,...pts), mx=Math.max(0,...pts); if(mx===mn) mx=mn+1;
+  const X=i=> padL + i/(pts.length-1)*plotW;
+  const Y=v=> padT + plotH - (v-mn)/(mx-mn)*plotH;
+  g.strokeStyle=tc.grid; g.fillStyle=tc.axis; g.font='10px monospace'; g.lineWidth=1;
+  const ticks=6;
+  for(let k=0;k<=ticks;k++){
+    const v=mn+(mx-mn)*k/ticks; const y=Y(v);
+    g.beginPath(); g.moveTo(padL,y); g.lineTo(padL+plotW,y); g.stroke();
+    g.fillText('$'+Math.round(v).toLocaleString('en-US'), 4, y+3);
+  }
+  g.strokeStyle=tc.sep; g.beginPath(); g.moveTo(padL,Y(0)); g.lineTo(padL+plotW,Y(0)); g.stroke();
+  g.strokeStyle = pts[pts.length-1]>=0 ? '#26a65b' : '#e0524f'; g.lineWidth=1.8;
+  g.beginPath();
+  pts.forEach((v,i)=>{ const x=X(i), y=Y(v); i? g.lineTo(x,y) : g.moveTo(x,y); });
+  g.stroke();
+  g.fillStyle=g.strokeStyle; g.font='13px monospace';
+  g.fillText((pts[pts.length-1]>=0?'+':'')+'$'+Math.round(pts[pts.length-1]).toLocaleString('en-US'), padL+8, padT+16);
+  state.trackerEquityProj={X,Y,pts,padL,plotW,padT,plotH,w,h};
+}
+function drawTrackerDrawdown(){
+  const cv=document.getElementById('trackerDrawdownCanvas'); if(!cv) return;
+  const {w,h}=fitCanvas(cv); const g=cv.getContext('2d'); const tc=TC();
+  g.clearRect(0,0,w,h);
+  const padL=56, padR=16, padT=8, padB=8;
+  const plotW=w-padL-padR, plotH=h-padT-padB;
+  // misma serie que el equity de arriba: drawdown = pico previo - valor actual (siempre >= 0)
+  let cum=0, peak=0; const dd=[0];
+  for(const l of state.ledger){ cum+=l.amount; if(cum>peak) peak=cum; dd.push(peak-cum); }
+  if(dd.length<2){ g.fillStyle=tc.muted; g.font='12px monospace'; g.fillText('Sin movimientos todavía', padL, padT+20); return; }
+  const mx=Math.max(1,...dd);
+  const X=i=> padL + i/(dd.length-1)*plotW;
+  // eje Y INVERTIDO: 0 (sin drawdown) arriba, el pozo más profundo abajo — así se ve como estar "bajo el agua"
+  const Y=v=> padT + (v/mx)*plotH;
+  g.strokeStyle=tc.grid; g.fillStyle=tc.axis; g.font='10px monospace'; g.lineWidth=1;
+  const ticks=4;
+  for(let k=0;k<=ticks;k++){
+    const v=mx*k/ticks; const y=Y(v);
+    g.beginPath(); g.moveTo(padL,y); g.lineTo(padL+plotW,y); g.stroke();
+    g.fillText('-$'+Math.round(v).toLocaleString('en-US'), 4, y+3);
+  }
+  // área sombreada bajo la curva, para que el pozo se lea de un vistazo
+  g.fillStyle='rgba(224,82,79,0.18)';
+  g.beginPath(); g.moveTo(X(0), Y(0));
+  dd.forEach((v,i)=> g.lineTo(X(i), Y(v)));
+  g.lineTo(X(dd.length-1), Y(0)); g.closePath(); g.fill();
+  g.strokeStyle='#e0524f'; g.lineWidth=1.8;
+  g.beginPath();
+  dd.forEach((v,i)=>{ const x=X(i), y=Y(v); i? g.lineTo(x,y) : g.moveTo(x,y); });
+  g.stroke();
+  const maxDD=Math.max(...dd), maxDDIdx=dd.indexOf(maxDD);
+  g.fillStyle='#e0524f'; g.font='13px monospace';
+  g.fillText('máx: -$'+Math.round(maxDD).toLocaleString('en-US'), padL+8, padT+plotH-6);
+  // punto marcando dónde ocurrió el pozo más profundo
+  g.beginPath(); g.arc(X(maxDDIdx), Y(maxDD), 3, 0, Math.PI*2); g.fill();
+}
+function renderTrackerSimplePanel(){
+  const el=document.getElementById('trackerPaneSimple'); if(!el) return;
+  const s=computeTrackerStats();
+  let title, pct, num, den, desc;
+  if(state.simMode==='challenge'){
+    title='% de aprobación del Challenge'; pct=s.approvalRate; num=s.everFundedCount; den=s.total;
+    desc='Challenges comprados que llegaron a aprobar la fase — en este modo nunca se activan como fondeadas, solo interesa si pasaron o no.';
+  } else {
+    title='% de aprobación del Colchón'; pct=s.cushionRate; num=s.cushionCount; den=s.everFundedCount;
+    desc='De las cuentas que llegaron a fondearse, cuántas lograron el colchón en su único intento (día 1) — no siguen a extracción.';
+  }
+  el.innerHTML=`
+    <div style="text-align:center;padding:40px 20px">
+      <div class="mini" style="color:var(--muted);text-transform:uppercase;letter-spacing:1px">${title}</div>
+      <div style="font-size:56px;font-weight:700;margin:14px 0;color:${pct>=0.5?'var(--green)':'var(--red)'}">${den>0?(pct*100).toFixed(1):'—'}%</div>
+      <div class="mini" style="color:var(--muted)">${num} de ${den}${den===0?' (todavía sin datos)':''}</div>
+      <div class="hint" style="max-width:420px;margin:18px auto 0">${desc}</div>
+    </div>`;
+}
+function renderTrackerView(){
+  renderTrackerAcctList();
+  const simple = state.simMode!=='full';
+  document.getElementById('trackerTabsBar').style.display = simple ? 'none' : 'flex';
+  document.getElementById('trackerPaneSimple').style.display = simple ? 'block' : 'none';
+  document.getElementById('trackerPaneLog').style.display = (!simple && state.trackerSubTab==='log') ? 'block' : 'none';
+  document.getElementById('trackerPaneEquity').style.display = (!simple && state.trackerSubTab==='equity') ? 'block' : 'none';
+  if(simple){ renderTrackerSimplePanel(); return; }
+  if(state.trackerSubTab==='log') renderTrackerLogPane();
+  else if(state.trackerSubTab==='equity'){ drawTrackerEquity(); drawTrackerDrawdown(); renderTrackerStatsPane(); }
+}
+function renderPosition(){
+  const box=document.getElementById('posBox');
+  const acc=activeAcct();
+  const p=acc? acc.position : null;
+  if(!p){ box.innerHTML='<div class="hint">Sin posición en esta cuenta.</div>'; return; }
+  const u=(curPx()-p.entry)*p.side*p.qty*pv();
+  box.innerHTML=`
+    <div class="kv"><span class="k">Cuenta</span><span class="v">${acc.name}</span></div>
+    <div class="kv"><span class="k">Lado / Qty</span><span class="v ${p.side>0?'pos':'neg'}">${p.side>0?'LONG':'SHORT'} ${p.qty}</span></div>
+    <div class="kv"><span class="k">Entrada</span><span class="v">${p.entry.toFixed(2)}</span></div>
+    <div class="kv"><span class="k">Precio</span><span class="v">${curPx().toFixed(2)}</span></div>
+    ${p.sl!=null?`<div class="kv"><span class="k">SL</span><span class="v neg">${p.sl.toFixed(2)}</span></div>`:''}
+    ${p.tp!=null?`<div class="kv"><span class="k">TP</span><span class="v pos">${p.tp.toFixed(2)}</span></div>`:''}
+    <div class="kv"><span class="k">P&L abierto</span><span class="v ${u>=0?'pos':'neg'}">${(u>=0?'+':'')+money(u)}</span></div>`;
+}
+function renderOrders(){
+  const box=document.getElementById('ordBox');
+  if(!state.orders.length){ box.innerHTML='<div class="hint">Ninguna.</div>'; return; }
+  box.innerHTML='';
+  for(const o of state.orders){
+    const acc=state.accounts.find(a=>a.id===o.accId);
+    const r=document.createElement('div'); r.className='ordrow';
+    r.innerHTML=`<span class="${o.side>0?'pos':'neg'}">${o.side>0?'BUY':'SELL'} ${o.type.toUpperCase()} ${o.qty} @${o.px.toFixed(2)}</span>
+      <span class="mini">${acc?acc.name.split(' ')[0]:''} <button data-c="${o.id}" style="padding:1px 5px">✕</button></span>`;
+    box.appendChild(r);
+  }
+  box.querySelectorAll('button[data-c]').forEach(b=> b.addEventListener('click',()=>cancelOrder(+b.dataset.c)));
+}
+function renderHeader(){
+  const b=curBar();
+  document.getElementById('dateLbl').textContent = b? (b.day+'  '+b.t.toTimeString().slice(0,5)) : '—';
+  document.getElementById('progLbl').textContent = `bar ${state.idx+1} / ${state.bars.length}`;
+}
+// ---------- BUY MODAL: picker de plantillas ----------
+function renderCompanyPicker(){
+  const box=document.getElementById('companyPicker'); if(!box) return;
+  const companies=[...new Set(state.templates.map(t=>t.company||'Sin empresa'))];
+  if(!state.selCompany || !companies.includes(state.selCompany)) state.selCompany=companies[0]||null;
+  box.innerHTML='';
+  for(const c of companies){
+    const b=document.createElement('button');
+    b.className='accttab'+(c===state.selCompany?' on':'');
+    b.textContent=c;
+    b.onclick=()=>{ state.selCompany=c; state.selTpl=null; renderCompanyPicker(); renderTplPicker(); };
+    box.appendChild(b);
+  }
+}
+function renderTplPicker(){
+  const box=document.getElementById('tplPicker'); box.innerHTML='';
+  const inCompany=state.templates.filter(t=>(t.company||'Sin empresa')===state.selCompany);
+  if(!inCompany.length){ box.innerHTML='<div class="hint">No hay plantillas de esta empresa todavía. Creá una con "+ Nueva plantilla".</div>'; return; }
+  if(!state.selTpl || !inCompany.some(t=>t.id===state.selTpl)) state.selTpl=inCompany[0].id;
+  for(const t of inCompany){
+    const div=document.createElement('div');
+    div.className='tpl-card'+(t.id===state.selTpl?' sel':'');
+    const nP=t.phases.length;
+    div.innerHTML=`
+      <div class="row" style="justify-content:space-between"><b>${t.name}</b><span class="mini">$${t.cost}</span></div>
+      <div class="mini">${nP} fase${nP>1?'s':''} · cuenta $${t.size.toLocaleString()} · obj. fase 1: $${t.phases[0].target} · DD $${t.phases[0].ddAmount} (${t.phases[0].ddType})</div>
+      <div class="mini">Fondeada: DD $${t.funded.ddAmount} (${t.funded.ddType}) · payout ${t.funded.payoutPct}% · split ${t.funded.splitPct}%${t.funded.payoutCap?' (tope $'+t.funded.payoutCap+')':''}</div>`;
+    div.onclick=()=>{ state.selTpl=t.id; armDeleteId=null; clearTimeout(armDeleteTimer);
+      const b=document.getElementById('btnDelTpl'); if(b) b.textContent='🗑 Eliminar';
+      const m=document.getElementById('tplDelMsg'); if(m) m.textContent='';
+      renderTplPicker(); };
+    box.appendChild(div);
+  }
+}
+function openBuyModal(){
+  renderCompanyPicker();
+  renderTplPicker();
+  document.getElementById('buyQty').value=1;
+  document.getElementById('buyModalOverlay').style.display='flex';
+}
+function closeBuyModal(){ document.getElementById('buyModalOverlay').style.display='none'; }
+
+// ---------- TEMPLATE EDITOR: fases dinámicas + reglas de fondeada ----------
+function blankPhase(){ return {target:3000, ddAmount:2000, ddType:'trailing', lockAtStart:true, dailyLoss:0,
+  consistencyOn:false, consistencyPct:50}; }
+function blankFunded(){ return {ddAmount:2000, ddType:'trailing', lockAtStart:true, dailyLoss:0,
+  payoutPct:100, payoutCap:2000, closeOnPayout:false,
+  consistencyOn:false, consistencyPct:50,
+  bufferOn:false, buffer:0,
+  capScheduleOn:false, capSchedule:[1500,2000,2500,3000],
+  splitPct:100,
+  maxPayouts:0,
+  minDays:0, minDayProfit:0, minCycleSum:0 }; }
+
+function openTplEditor(existing){
+  state.tplDraft = existing ? JSON.parse(JSON.stringify(existing))
+    : { id:'t'+(state.tid++), name:'Nueva plantilla', company: state.selCompany||'', cost:150, size:50000, activationCost:0,
+        allowSameDirectionMultiAccount:true, phases:[blankPhase()], funded:blankFunded() };
+  state.tplIsNew = !existing;
+  document.getElementById('tplModalTitle').textContent = existing? 'Editar plantilla' : 'Nueva plantilla';
+  document.getElementById('tf_name').value=state.tplDraft.name;
+  document.getElementById('tf_company').value=state.tplDraft.company||'';
+  const companies=[...new Set(state.templates.map(t=>t.company).filter(Boolean))];
+  document.getElementById('tf_company_list').innerHTML=companies.map(c=>`<option value="${c}">`).join('');
+  document.getElementById('tf_cost').value=state.tplDraft.cost;
+  document.getElementById('tf_size').value=state.tplDraft.size;
+  document.getElementById('tf_actcost').value=state.tplDraft.activationCost||0;
+  document.getElementById('tf_samedir').checked=!!state.tplDraft.allowSameDirectionMultiAccount;
+  renderPhasesBox(); renderFundedBox();
+  document.getElementById('tplModalOverlay').style.display='flex';
+}
+function closeTplEditor(){ document.getElementById('tplModalOverlay').style.display='none'; }
+
+function ddTypeOptions(sel){
+  return `<option value="trailing"${sel==='trailing'?' selected':''}>Trailing intradía</option>
+    <option value="eod-trailing"${sel==='eod-trailing'?' selected':''}>Trailing EOD</option>
+    <option value="static"${sel==='static'?' selected':''}>Estático</option>`;
+}
+function renderPhasesBox(){
+  const phases=state.tplDraft.phases;
+  document.getElementById('phasesBox').innerHTML = phases.map((p,idx)=>`
+    <div class="phase-row">
+      <div class="row" style="justify-content:space-between;margin-bottom:4px">
+        <b class="mini">Fase ${idx+1}</b>
+        ${phases.length>1?`<button data-rmphase="${idx}" style="padding:1px 7px">🗑</button>`:''}
+      </div>
+      <div class="grid2">
+        <div><label>Objetivo $</label><input data-pf="target" data-idx="${idx}" type="number" step="100" value="${p.target}"></div>
+        <div><label>Drawdown $</label><input data-pf="ddAmount" data-idx="${idx}" type="number" step="100" value="${p.ddAmount}"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Tipo DD</label><select data-pf="ddType" data-idx="${idx}">${ddTypeOptions(p.ddType)}</select></div>
+        <div><label>Lock DD en inicio</label><select data-pf="lockAtStart" data-idx="${idx}">
+          <option value="1"${p.lockAtStart?' selected':''}>Sí</option><option value="0"${!p.lockAtStart?' selected':''}>No</option></select></div>
+      </div>
+      <div><label>Daily loss $ (0 = off)</label><input data-pf="dailyLoss" data-idx="${idx}" type="number" step="50" value="${p.dailyLoss}"></div>
+      <div class="toggrow" style="margin-top:6px">
+        <label class="switch"><input type="checkbox" data-pfbool="consistencyOn" data-idx="${idx}" ${p.consistencyOn?'checked':''}><span class="toggle-slider"></span></label>
+        <span style="flex:1">Consistencia (mejor día ≤ % del total)</span>
+        <input data-pf="consistencyPct" data-idx="${idx}" type="number" step="5" value="${p.consistencyPct}" style="width:60px" ${p.consistencyOn?'':'disabled'}>
+      </div>
+    </div>`).join('');
+}
+function renderFundedBox(){
+  const f=state.tplDraft.funded;
+  document.getElementById('fundedBox').innerHTML=`
+    <div class="grid2">
+      <div><label>Drawdown $</label><input data-ff="ddAmount" type="number" step="100" value="${f.ddAmount}"></div>
+      <div><label>Tipo DD</label><select data-ff="ddType">${ddTypeOptions(f.ddType)}</select></div>
+    </div>
+    <div class="grid2">
+      <div><label>Lock DD en inicio</label><select data-ff="lockAtStart">
+        <option value="1"${f.lockAtStart?' selected':''}>Sí</option><option value="0"${!f.lockAtStart?' selected':''}>No</option></select></div>
+      <div><label>Daily loss $ (0 = off)</label><input data-ff="dailyLoss" type="number" step="50" value="${f.dailyLoss}"></div>
+    </div>
+
+    <div class="toggrow" style="margin-top:4px">
+      <label class="switch"><input type="checkbox" data-ffbool="consistencyOn" ${f.consistencyOn?'checked':''}><span class="toggle-slider"></span></label>
+      <span style="flex:1">Consistencia por ciclo de retiro</span>
+      <input data-ff="consistencyPct" type="number" step="5" value="${f.consistencyPct}" style="width:60px" ${f.consistencyOn?'':'disabled'}>
+    </div>
+
+    <div class="grid2">
+      <div><label>Payout % (del profit retirable)</label><input data-ff="payoutPct" type="number" step="5" min="0" max="100" value="${f.payoutPct}"></div>
+      <div><label>Profit split % (lo que TE quedás del retiro)</label><input data-ff="splitPct" type="number" step="5" min="0" max="100" value="${f.splitPct}"></div>
+    </div>
+
+    <div class="toggrow">
+      <label class="switch"><input type="checkbox" data-ffbool="bufferOn" ${f.bufferOn?'checked':''}><span class="toggle-slider"></span></label>
+      <span style="flex:1">Buffer de retiro (piso no retirable)</span>
+      <input data-ff="buffer" type="number" step="100" value="${f.buffer}" style="width:80px" ${f.bufferOn?'':'disabled'}>
+    </div>
+
+    <div class="toggrow">
+      <label class="switch"><input type="checkbox" data-ffbool="capScheduleOn" ${f.capScheduleOn?'checked':''}><span class="toggle-slider"></span></label>
+      <span style="flex:1">Tope escalonado por retiro (en vez de tope fijo)</span>
+    </div>
+    ${f.capScheduleOn
+      ? `<div><label>Topes por retiro<span class="hint"> — 1º, 2º, 3º…; el último se repite</span></label><input id="ff_capSched" type="text" value="${f.capSchedule.join(', ')}"></div>`
+      : `<div><label>Tope fijo por retiro $ (0 = sin tope)</label><input data-ff="payoutCap" type="number" step="100" value="${f.payoutCap}"></div>`}
+
+    <div class="grid2" style="margin-top:6px">
+      <div><label>Máx. cantidad de retiros (0 = ∞)</label><input data-ff="maxPayouts" type="number" step="1" value="${f.maxPayouts}"></div>
+      <div><label>Cierra cuenta al cobrar</label><select data-ff="closeOnPayout">
+        <option value="1"${f.closeOnPayout?' selected':''}>Sí</option><option value="0"${!f.closeOnPayout?' selected':''}>No</option></select></div>
+    </div>
+
+    <div style="border-top:1px dashed var(--border);padding-top:8px;margin-top:6px">
+      <b class="mini" style="color:var(--muted)">ELEGIBILIDAD DEL RETIRO (0 = sin exigencia)</b>
+      <div class="grid3" style="margin-top:5px">
+        <div><label>Días mínimos</label><input data-ff="minDays" type="number" step="1" value="${f.minDays}"></div>
+        <div><label>Profit mín. p/día válido</label><input data-ff="minDayProfit" type="number" step="10" value="${f.minDayProfit}"></div>
+        <div><label>Suma mín. esos días</label><input data-ff="minCycleSum" type="number" step="100" value="${f.minCycleSum}"></div>
+      </div>
+    </div>`;
+}
+// delegación de eventos: los inputs de fase/fondeada escriben directo sobre el draft en memoria
+function wireTplDraftInputs(){
+  const ph=document.getElementById('phasesBox');
+  ph.addEventListener('input', e=>{
+    const idx=e.target.dataset.idx, f=e.target.dataset.pf;
+    if(idx==null||!f||e.target.type==='checkbox'||e.target.tagName==='SELECT') return;
+    state.tplDraft.phases[idx][f]=parseFloat(e.target.value)||0;
+  });
+  ph.addEventListener('change', e=>{
+    const idx=e.target.dataset.idx;
+    if(idx==null) return;
+    if(e.target.dataset.pfbool){ state.tplDraft.phases[idx][e.target.dataset.pfbool]=e.target.checked; renderPhasesBox(); return; }
+    const f=e.target.dataset.pf; if(!f||e.target.tagName!=='SELECT') return;
+    state.tplDraft.phases[idx][f] = f==='lockAtStart' ? e.target.value==='1' : e.target.value;
+  });
+  ph.addEventListener('click', e=>{
+    if(e.target.dataset.rmphase==null) return;
+    const idx=+e.target.dataset.rmphase;
+    if(state.tplDraft.phases.length>1){ state.tplDraft.phases.splice(idx,1); renderPhasesBox(); }
+  });
+  const fb=document.getElementById('fundedBox');
+  fb.addEventListener('input', e=>{
+    if(e.target.id==='ff_capSched'){
+      state.tplDraft.funded.capSchedule=(e.target.value.match(/[\d.]+/g)||[]).map(Number);
+      return;
+    }
+    const f=e.target.dataset.ff; if(!f||e.target.type==='checkbox'||e.target.tagName==='SELECT') return;
+    state.tplDraft.funded[f]=parseFloat(e.target.value)||0;
+  });
+  fb.addEventListener('change', e=>{
+    if(e.target.dataset.ffbool){ state.tplDraft.funded[e.target.dataset.ffbool]=e.target.checked; renderFundedBox(); return; }
+    const f=e.target.dataset.ff; if(!f) return;
+    if(e.target.tagName==='SELECT'){
+      if(f==='lockAtStart'||f==='closeOnPayout') state.tplDraft.funded[f]=e.target.value==='1';
+      else state.tplDraft.funded[f]=e.target.value;
+    }
+  });
+}
+
+function renderAll(){
+  if(state.suppressRender) return; // corrida silenciosa en curso: se pinta una sola vez al final
+  drawChart(); drawRSIChart(); renderHeader(); renderAccounts(); renderStats();
+  renderPosition(); renderOrders(); renderAtmChips();
+  if(state.activeTab==='tracker') renderTrackerView();
+}
+
+/* ============================================================
+   SESIÓN: export / import
+   ============================================================ */
+function exportSession(){
+  const data={v:2, instr:state.instr, comm:state.comm, idx:state.idx, dayIndex:state.dayIndex,
+    tradingDayCutoff:state.tradingDayCutoff,
+    templates:state.templates, accounts:state.accounts, ledger:state.ledger,
+    orders:state.orders, tradingPnl:state.tradingPnl,
+    drawings:state.drawings, selAcct:state.selAcct, tid:state.tid,
+    atmPresetsByTpl:state.atmPresetsByTpl, atmIdCounter:state.atmIdCounter,
+    theme: document.body.classList.contains('light')?'light':'dark',
+    bars: state.bars.map(b=>[b.t.toISOString(),b.o,b.h,b.l,b.c,b.v]) };
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='sesion-fondeo.json'; a.click();
+}
+function importSession(obj){
+  state.instr=obj.instr; state.comm=obj.comm; document.getElementById('instr').value=obj.instr;
+  document.getElementById('commIn').value=obj.comm;
+  state.tradingDayCutoff=obj.tradingDayCutoff||{h:17,m:0};
+  document.getElementById('tradingDayCutoffIn').value=String(state.tradingDayCutoff.h).padStart(2,'0')+':'+String(state.tradingDayCutoff.m).padStart(2,'0');
+  state.bars=(obj.bars||[]).map(a=>({t:new Date(a[0]),o:a[1],h:a[2],l:a[3],c:a[4],v:a[5],day:fmtDay(new Date(a[0]))}));
+  state.idx=obj.idx; state.dayIndex=obj.dayIndex||0;
+  state.templates=obj.templates||defaultTemplates();
+  state.accounts=obj.accounts||[]; state.ledger=obj.ledger||[];
+  state.agentLiveAccounts=state.accounts.filter(a=>!isTerminalStatus(a.status));
+  state.orders=obj.orders||[];
+  state.atmPresetsByTpl=obj.atmPresetsByTpl||defaultAtmPresets(); state.atmIdCounter=obj.atmIdCounter||7;
+  state.tradingPnl=obj.tradingPnl||0; state.drawings=obj.drawings||[];
+  state.selAcct=obj.selAcct||null; state.selTpl=state.templates[0]?.id||null; state.selCompany=null;
+  state.tid=obj.tid||100;
+  setTheme(obj.theme==='light');
+  renderAll();
+}
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+function $(id){ return document.getElementById(id); }
+$('btnSample').onclick=()=>loadBars(genSample());
+$('btnLoadCsv').onclick=()=>$('csvFile').click();
+$('csvFile').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader();
+  r.onload=()=>loadBars(parseCSV(r.result)); r.readAsText(f); };
+$('btnExport').onclick=exportSession;
+$('btnImport').onclick=()=>$('sessFile').click();
+$('sessFile').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader();
+  r.onload=()=>{ try{ importSession(JSON.parse(r.result)); }catch(err){ alert('JSON inválido'); } }; r.readAsText(f); };
+
+$('instr').onchange=e=>{ state.instr=e.target.value; renderAll(); };
+$('commIn').onchange=e=>{ state.comm=parseFloat(e.target.value)||0; };
+$('tradingDayCutoffIn').onchange=e=>{
+  const v=e.target.value;
+  state.tradingDayCutoff = v ? {h:+v.split(':')[0], m:+v.split(':')[1]} : {h:0,m:0};
+  retagBarsWithCutoff();
+  renderAll(); drawRSIChart();
+};
+// re-etiqueta el .day de TODAS las barras ya cargadas con el corte vigente — así cambiar el corte
+// después de cargar datos no deja las barras con la etiqueta vieja (medianoche u otro corte).
+function retagBarsWithCutoff(){
+  for(const b of state.bars) b.day=fmtDay(b.t);
+}
+
+$('btnPlay').onclick=togglePlay;
+$('btnStep').onclick=stepForward;
+$('btnSkipDay').onclick=skipDay;
+$('btnGoto').onclick=()=>{
+  const v=$('gotoInput').value;
+  if(!v){ alert('Elegí una fecha y hora.'); return; }
+  gotoDateTime(new Date(v));
+};
+$('btnNextDaySameTime').onclick=gotoNextDaySameTime;
+$('btnRandomIntrabar').onclick=()=>{
+  state.randomIntrabar=!state.randomIntrabar;
+  $('btnRandomIntrabar').textContent='🎲 Intrabar: '+(state.randomIntrabar?'ON':'OFF');
+  $('btnRandomIntrabar').classList.toggle('on', state.randomIntrabar);
+};
+// corre toda la simulación en trozos (chunks) SIN renderAll en cada barra — solo actualiza un contador
+// de texto liviano mientras procesa, y recién pinta todo (incluida la pestaña Tracker) al terminar.
+// Cede el control cada ~50ms (setTimeout) para no congelar la pestaña con datasets grandes.
+function startFastForward(){
+  if(!state.bars.length) return;
+  stopPlay();
+  state.fastForward.running=true; state.fastForward.cancelled=false;
+  const agentWasActive=state.agent.active;
+  $('btnFastForward').textContent='⏹ Detener';
+  $('fastForwardStatus').style.display='inline';
+  function chunk(){
+    if(state.fastForward.cancelled){ finishFastForward(); return; }
+    const chunkStart=performance.now();
+    let keepGoing=true;
+    // durante el chunk NO se pinta nada: closePosition/buyAccount llaman renderAll por su cuenta, y
+    // repintar en cada trade es justamente lo que congelaba la pestaña en corridas largas.
+    state.suppressRender=true;
+    try{
+      while(keepGoing){
+        keepGoing=stepForwardSilent();
+        if(!keepGoing) break;
+        if(agentWasActive && !state.agent.active) break; // el agente terminó solo (llegó a su fecha "hasta")
+        if(performance.now()-chunkStart>50) break; // cede el control del hilo cada ~50ms
+      }
+    } catch(err){
+      // sin este catch, cualquier error inesperado durante la corrida dejaba fastForward.running en
+      // true para siempre — el botón de Reset (y el de Modo rápido) quedaban rotos hasta recargar la
+      // página. Con esto, el peor caso es que la corrida se corta con un aviso, pero la UI sigue viva.
+      state.suppressRender=false;
+      console.error('Modo rápido: corrida interrumpida por un error', err);
+      finishFastForward();
+      showAlert('El modo rápido se detuvo por un error inesperado: '+((err&&err.message)||err), '');
+      return;
+    } finally {
+      state.suppressRender=false; // se levanta SIEMPRE, aunque algo explote en el medio
+    }
+    $('fastForwardStatus').textContent=`procesando… bar ${state.idx+1} / ${state.bars.length}`;
+    const doneByData=state.idx>=state.bars.length-1;
+    const doneByAgent=agentWasActive && !state.agent.active;
+    if(doneByData || doneByAgent){ finishFastForward(); return; }
+    setTimeout(chunk, 0);
+  }
+  chunk();
+}
+function finishFastForward(){
+  state.fastForward.running=false;
+  $('btnFastForward').textContent='⏩⏩ Modo rápido';
+  $('fastForwardStatus').style.display='none';
+  updateAgentResetButton(); // si no, queda con el estado deshabilitado de cuando corría, sin refrescarse
+  renderAll(); // recién acá se pinta todo, incluida la pestaña Tracker si está a la vista
+}
+$('btnFastForward').onclick=()=>{
+  if(state.fastForward.running) state.fastForward.cancelled=true;
+  else startFastForward();
+};
+document.querySelectorAll('#mainAcctTabs .accttab').forEach(b=>{
+  b.onclick=()=>{ state.acctFilter=b.dataset.cat; renderAccounts(); };
+});
+document.querySelectorAll('#trackerCatTabs .accttab').forEach(b=>{
+  b.onclick=()=>{ state.trackerCatFilter=b.dataset.cat; renderTrackerAcctList(); };
+});
+const SIM_MODE_HINTS={
+  challenge:'Solo interesa si el challenge se aprueba o no — las cuentas nunca se activan como fondeadas.',
+  cushion:'Las cuentas sí se fondean, pero solo se juega el colchón (día 1): logrado o no, ahí termina.',
+  full:'Ciclo completo: challenge → fondeada → colchón → extracción → payouts, como siempre.',
+};
+function updateSimModeHint(){ $('simModeHint').textContent=SIM_MODE_HINTS[state.simMode]||''; }
+document.querySelectorAll('#simModeTabs .accttab').forEach(b=>{
+  b.onclick=()=>{
+    state.simMode=b.dataset.mode;
+    document.querySelectorAll('#simModeTabs .accttab').forEach(x=>x.classList.toggle('on', x===b));
+    updateSimModeHint();
+    if(state.activeTab==='tracker') renderTrackerView();
+  };
+});
+updateSimModeHint();
+const SPEED_MS=[2000,1200,700,400,220,110,50]; // ms entre barras, de más lento a máx
+function updateSpeedLbl(){ $('speedLbl').textContent=(1000/state.speed).toFixed(1)+' barras/s'; }
+state.speed=SPEED_MS[2];
+$('speedSlider').oninput=e=>{
+  state.speed=SPEED_MS[+e.target.value]; updateSpeedLbl();
+  if(state.playing) startPlay();
+};
+updateSpeedLbl();
+
+document.querySelectorAll('.tool').forEach(b=>{
+  b.onclick=()=>{ state.tool=b.dataset.tool; document.querySelectorAll('.tool').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); if(state.tool!=='cursor'){ state.selDraw=null; hideDrawToolbar(); } drawChart(); };
+});
+$('btnDelDraw').onclick=()=>{
+  const d=getSelDrawing();
+  if(d && !d.locked){ state.drawings=state.drawings.filter(x=>x.id!==d.id); state.selDraw=null; hideDrawToolbar(); drawChart(); }
+};
+$('btnClearDraw').onclick=()=>{
+  state.drawings=state.drawings.filter(d=>d.locked); // conserva las bloqueadas
+  state.selDraw=null; hideDrawToolbar(); drawChart();
+};
+
+
+function qty(){ return Math.max(1, parseInt($('qtyIn').value)||1); }
+$('floatFlat').onclick=()=>{ const acc=activeAcct(); if(acc && acc.position) closePosition(acc, curPx(), 'manual'); else alert('No hay posición abierta en esta cuenta.'); };
+$('floatBuy').onclick=()=>executeOrderClick(1);
+$('floatSell').onclick=()=>executeOrderClick(-1);
+function executeOrderClick(side){
+  if(state.activeAtm){
+    const acc=activeAcct();
+    const atm=acc ? atmPresetsFor(acc.tplId).find(a=>a.id===state.activeAtm) : null;
+    if(atm){ submitAtmOrder(side, atm); return; }
+  }
+  openOrderModal(side);
+}
+function submitAtmOrder(side, atm){
+  const q=Math.max(1, atm.qty||1);
+  if(atm.type==='market'){
+    openPosition(side, q, atm.sl, atm.tp, atm.name);
+  } else {
+    if(!(atm.price>0)){ alert('El preset "'+atm.name+'" no tiene un precio de entrada válido.'); return; }
+    placeOrder(side, atm.type, atm.price, q, atm.sl, atm.tp, atm.name);
+  }
+}
+
+let modalSide=1, modalType='market';
+function openOrderModal(side){
+  modalSide=side; modalType='market';
+  const t=$('modalTitle'); t.textContent = side>0?'Comprar':'Vender';
+  t.style.color = side>0? '#26a65b':'#e0524f';
+  document.querySelectorAll('#typeSeg .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.type==='market'));
+  $('priceRow').style.display='none';
+  $('modalPrice').value=''; $('modalPrice').placeholder=curPx().toFixed(2)+' (mercado)';
+  $('modalQty').value=qty();
+  $('modalSlOn').checked=false; $('modalSlVal').value=''; $('modalSlVal').disabled=true;
+  $('modalTpOn').checked=false; $('modalTpVal').value=''; $('modalTpVal').disabled=true;
+  const acc=activeAcct();
+  $('modalAcctLbl').textContent = acc
+    ? ('Cuenta: '+acc.name + (canTrade(acc)?'':'  ⚠ no operable ('+acc.status+')'))
+    : 'Sin cuenta seleccionada — elegí una a la derecha';
+  $('orderModalOverlay').style.display='flex';
+}
+function closeOrderModal(){ $('orderModalOverlay').style.display='none'; }
+document.querySelectorAll('#typeSeg .segbtn').forEach(b=>{
+  b.onclick=()=>{ modalType=b.dataset.type;
+    document.querySelectorAll('#typeSeg .segbtn').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    $('priceRow').style.display = modalType==='market' ? 'none' : 'block';
+  };
+});
+$('modalSlOn').onchange=e=>{ $('modalSlVal').disabled=!e.target.checked; };
+$('modalTpOn').onchange=e=>{ $('modalTpVal').disabled=!e.target.checked; };
+$('modalClose').onclick=closeOrderModal;
+$('modalCancel').onclick=closeOrderModal;
+$('modalConfirm').onclick=()=>{
+  const q=Math.max(1, parseInt($('modalQty').value)||1);
+  const slOn=$('modalSlOn').checked, tpOn=$('modalTpOn').checked;
+  const slV=slOn? parseFloat($('modalSlVal').value) : null;
+  const tpV=tpOn? parseFloat($('modalTpVal').value) : null;
+  if(slOn && !isFinite(slV)){ alert('Ingresá un valor de Stop Loss en puntos.'); return; }
+  if(tpOn && !isFinite(tpV)){ alert('Ingresá un valor de Take Profit en puntos.'); return; }
+  if(modalType==='market'){
+    openPosition(modalSide, q, slV, tpV);
+  } else {
+    const px=parseFloat($('modalPrice').value);
+    if(!isFinite(px)){ alert('Ingresá el precio de la orden.'); return; }
+    placeOrder(modalSide, modalType, px, q, slV, tpV);
+  }
+  closeOrderModal();
+};
+
+window.addEventListener('keydown', e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+  if(e.code==='Space'){ e.preventDefault(); togglePlay(); }
+  else if(e.code==='ArrowRight'){ e.preventDefault(); stepForward(); }
+  else if(e.key==='d'||e.key==='D'){ skipDay(); }
+  else if(e.key==='Escape'){ state.drawTmp=null; state.tool='cursor';
+    document.querySelectorAll('.tool').forEach(x=>x.classList.remove('on'));
+    document.querySelector('.tool[data-tool="cursor"]').classList.add('on'); drawChart(); }
+  else if(e.key==='Delete'||e.key==='Backspace'){
+    const d=getSelDrawing();
+    if(d && !d.locked){ state.drawings=state.drawings.filter(x=>x.id!==d.id); state.selDraw=null; hideDrawToolbar(); drawChart(); }
+  }
+});
+
+// ---------- wiring: comprar cuentas (picker de plantillas) ----------
+$('btnOpenBuy').onclick=openBuyModal;
+$('buyModalClose').onclick=closeBuyModal;
+$('buyModalCancel').onclick=closeBuyModal;
+$('buyModalConfirm').onclick=()=>{
+  const t=state.templates.find(x=>x.id===state.selTpl);
+  if(!t){ alert('Elegí (o creá) una plantilla primero.'); return; }
+  const n=Math.max(1, parseInt($('buyQty').value)||1);
+  for(let i=0;i<n;i++) buyAccount(t, true);
+  closeBuyModal();
+};
+$('btnNewTpl').onclick=()=>openTplEditor(null);
+$('btnEditTpl').onclick=()=>{
+  const t=state.templates.find(x=>x.id===state.selTpl);
+  if(!t){ alert('Elegí una plantilla para editar.'); return; }
+  openTplEditor(t);
+};
+$('btnAtmForTpl').onclick=()=>{
+  const t=state.templates.find(x=>x.id===state.selTpl);
+  if(!t){ alert('Elegí una plantilla primero.'); return; }
+  openAtmModal(t.id);
+};
+let armDeleteId=null, armDeleteTimer=null;
+function tplDelMsg(text, cls){
+  const el=$('tplDelMsg'); el.textContent=text||''; el.className='mini'+(cls?' '+cls:'');
+}
+$('btnDelTpl').onclick=()=>{
+  const t=state.templates.find(x=>x.id===state.selTpl);
+  if(!t){ tplDelMsg('Elegí una plantilla primero.','neg'); return; }
+  if(state.accounts.some(a=>a.tplId===t.id)){
+    tplDelMsg('No se puede eliminar: hay cuentas (activas o históricas) que usan esta plantilla.','neg');
+    armDeleteId=null; $('btnDelTpl').textContent='🗑 Eliminar';
+    return;
+  }
+  if(armDeleteId!==t.id){
+    // primer click: arma la confirmación
+    armDeleteId=t.id;
+    $('btnDelTpl').textContent='🗑 ¿Seguro? Tocá de nuevo';
+    tplDelMsg('Tocá "Eliminar" una vez más para confirmar (se cancela solo en unos segundos).','');
+    clearTimeout(armDeleteTimer);
+    armDeleteTimer=setTimeout(()=>{ armDeleteId=null; $('btnDelTpl').textContent='🗑 Eliminar'; tplDelMsg(''); }, 4000);
+    return;
+  }
+  // segundo click dentro de la ventana: confirma el borrado
+  clearTimeout(armDeleteTimer); armDeleteId=null;
+  $('btnDelTpl').textContent='🗑 Eliminar';
+  state.templates=state.templates.filter(x=>x.id!==t.id);
+  delete state.atmPresetsByTpl[t.id]; // sus ATM ya no le sirven a nadie
+  state.selTpl=null; // que renderTplPicker/renderCompanyPicker elijan uno sensato de nuevo
+  tplDelMsg('Plantilla eliminada.','pos');
+  renderCompanyPicker(); renderTplPicker();
+};
+
+// ---------- wiring: editor de plantillas ----------
+wireTplDraftInputs();
+$('btnAddPhase').onclick=()=>{
+  const last=state.tplDraft.phases[state.tplDraft.phases.length-1];
+  state.tplDraft.phases.push(JSON.parse(JSON.stringify(last)));
+  renderPhasesBox();
+};
+$('tplModalClose').onclick=closeTplEditor;
+$('tplModalCancel').onclick=closeTplEditor;
+$('tplModalSave').onclick=()=>{
+  const d=state.tplDraft;
+  d.name=$('tf_name').value.trim()||'Sin nombre';
+  d.company=$('tf_company').value.trim()||'Sin empresa';
+  d.cost=parseFloat($('tf_cost').value)||0;
+  d.size=parseFloat($('tf_size').value)||0;
+  d.activationCost=parseFloat($('tf_actcost').value)||0;
+  d.allowSameDirectionMultiAccount=$('tf_samedir').checked;
+  for(const p of d.phases){ if(!(p.target>0)||!(p.ddAmount>0)){ alert('Cada fase necesita Objetivo y Drawdown mayores a 0.'); return; } }
+  if(!(d.funded.ddAmount>0)){ alert('Las reglas de fondeada necesitan Drawdown mayor a 0.'); return; }
+  const idx=state.templates.findIndex(t=>t.id===d.id);
+  if(idx>=0) state.templates[idx]=d; else state.templates.push(d);
+  state.selCompany=d.company; state.selTpl=d.id;
+  closeTplEditor();
+  renderCompanyPicker(); renderTplPicker();
+  renderAccounts(); // por si había cuentas de esta plantilla, refleja reglas nuevas
+};
+
+// ---------- ATM: presets de compra/venta rápida ----------
+function renderAtmChips(){
+  const host=document.getElementById('atmChips'); if(!host) return;
+  host.innerHTML='';
+  const acc=activeAcct();
+  if(!acc){ host.innerHTML='<span class="mini" style="color:var(--muted)">Seleccioná una cuenta</span>'; return; }
+  const presets=atmPresetsFor(acc.tplId);
+  if(!presets.length){ host.innerHTML='<span class="mini" style="color:var(--muted)">Sin ATM cargados para esta plantilla</span>'; return; }
+  for(const a of presets){
+    const b=document.createElement('button');
+    b.textContent=a.name;
+    b.className = a.id===state.activeAtm ? 'on' : '';
+    b.title = a.type.toUpperCase()+' x'+(a.qty||1)+(a.sl?(' · SL '+a.sl+'pts'):'')+(a.tp?(' · TP '+a.tp+'pts'):'')+(a.type!=='market'?(' · entrada '+a.price):'');
+    b.onclick=()=>{ state.activeAtm = (state.activeAtm===a.id) ? null : a.id; renderAtmChips(); };
+    host.appendChild(b);
+  }
+}
+function renderAtmList(){
+  const box=document.getElementById('atmList'); if(!box) return;
+  const presets=atmPresetsFor(state.atmEditingTplId);
+  if(!presets.length){ box.innerHTML='<div class="hint">Sin presets todavía para esta plantilla. Cargá uno abajo.</div>'; return; }
+  box.innerHTML='';
+  for(const a of presets){
+    const div=document.createElement('div');
+    div.className='tpl-card';
+    div.innerHTML=`
+      <div class="row" style="justify-content:space-between"><b>${a.name}</b><span class="mini">${a.type.toUpperCase()} x${a.qty||1}</span></div>
+      <div class="mini">${a.sl?('SL '+a.sl+'pts'):'sin SL'} · ${a.tp?('TP '+a.tp+'pts'):'sin TP'}${a.type!=='market'?(' · entrada '+a.price):''}</div>
+      <div class="row" style="margin-top:5px">
+        <button data-atmedit="${a.id}" style="flex:1">✎ Editar</button>
+        <button data-atmdel="${a.id}" style="flex:1">🗑</button>
+      </div>`;
+    box.appendChild(div);
+  }
+  box.querySelectorAll('[data-atmedit]').forEach(b=> b.onclick=()=>loadAtmForm(b.dataset.atmedit));
+  box.querySelectorAll('[data-atmdel]').forEach(b=> b.onclick=()=>armOrDeleteAtm(b.dataset.atmdel, b));
+}
+let atmFormType='market';
+function loadAtmForm(id){
+  const presets=atmPresetsFor(state.atmEditingTplId);
+  const a=id ? presets.find(x=>x.id===id) : null;
+  state.atmEditingId=id||null;
+  atmFormType = a ? a.type : 'market';
+  document.getElementById('atm_name').value = a? a.name : '';
+  document.getElementById('atm_qty').value = a && a.qty!=null ? a.qty : 1;
+  document.querySelectorAll('#atmTypeSeg .segbtn').forEach(x=>x.classList.toggle('on', x.dataset.type===atmFormType));
+  document.getElementById('atmPriceRow').style.display = atmFormType!=='market' ? 'block' : 'none';
+  document.getElementById('atm_price').value = a && a.price!=null ? a.price : '';
+  document.getElementById('atm_sl').value = a && a.sl!=null ? a.sl : '';
+  document.getElementById('atm_tp').value = a && a.tp!=null ? a.tp : '';
+}
+let atmArmDelete=null, atmArmTimer=null;
+function armOrDeleteAtm(id, btn){
+  if(atmArmDelete!==id){
+    atmArmDelete=id; const orig=btn.textContent; btn.textContent='¿Seguro?';
+    clearTimeout(atmArmTimer);
+    atmArmTimer=setTimeout(()=>{ atmArmDelete=null; btn.textContent=orig; }, 4000);
+    return;
+  }
+  clearTimeout(atmArmTimer); atmArmDelete=null;
+  const presets=atmPresetsFor(state.atmEditingTplId);
+  state.atmPresetsByTpl[state.atmEditingTplId]=presets.filter(x=>x.id!==id);
+  if(state.activeAtm===id) state.activeAtm=null;
+  renderAtmList(); renderAtmChips();
+}
+function openAtmModal(tplId){
+  state.atmEditingTplId=tplId;
+  const tpl=state.templates.find(t=>t.id===tplId);
+  const label=document.getElementById('atmModalTplLabel');
+  if(label) label.textContent = tpl ? (tpl.company?tpl.company+' — ':'')+tpl.name : '';
+  renderAtmList(); loadAtmForm(null); document.getElementById('atmModalOverlay').style.display='flex';
+}
+function closeAtmModal(){ document.getElementById('atmModalOverlay').style.display='none'; }
+document.getElementById('btnConfigAtm').onclick=()=>{
+  const acc=activeAcct();
+  if(!acc){ alert('Seleccioná primero una cuenta (así sé para qué plantilla configurar los ATM).'); return; }
+  openAtmModal(acc.tplId);
+};
+document.getElementById('atmModalClose').onclick=closeAtmModal;
+document.getElementById('atmModalDone').onclick=closeAtmModal;
+document.querySelectorAll('#atmTypeSeg .segbtn').forEach(b=>{
+  b.onclick=()=>{ atmFormType=b.dataset.type;
+    document.querySelectorAll('#atmTypeSeg .segbtn').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    document.getElementById('atmPriceRow').style.display = atmFormType==='market' ? 'none' : 'block';
+  };
+});
+document.getElementById('btnSaveAtm').onclick=()=>{
+  const name=document.getElementById('atm_name').value.trim();
+  if(!name){ alert('Ponele un nombre al preset.'); return; }
+  if(!state.atmEditingTplId){ alert('No hay una plantilla seleccionada para este ATM.'); return; }
+  const qtyV=Math.max(1, parseInt(document.getElementById('atm_qty').value)||1);
+  const slV=parseFloat(document.getElementById('atm_sl').value);
+  const tpV=parseFloat(document.getElementById('atm_tp').value);
+  const priceV=parseFloat(document.getElementById('atm_price').value);
+  if(atmFormType!=='market' && !(priceV>0)){ alert('Los presets Limit/Stop necesitan un precio de entrada válido.'); return; }
+  const preset={
+    id: state.atmEditingId || ('atm'+(state.atmIdCounter++)),
+    name, type: atmFormType, qty: qtyV,
+    sl: isFinite(slV) ? slV : null,
+    tp: isFinite(tpV) ? tpV : null,
+    price: atmFormType!=='market' ? priceV : null,
+  };
+  const presets=atmPresetsFor(state.atmEditingTplId);
+  const idx=presets.findIndex(x=>x.id===preset.id);
+  if(idx>=0) presets[idx]=preset; else presets.push(preset);
+  renderAtmList(); renderAtmChips();
+  loadAtmForm(null);
+};
+
+// ---------- wiring: Modo Agente ----------
+function renderAgentCompanyPicker(){
+  const sel=document.getElementById('ag_company'); if(!sel) return;
+  const companies=[...new Set(state.templates.map(t=>t.company||'Sin empresa'))];
+  const A=state.agent;
+  const curTpl=state.templates.find(t=>t.id===A.tplId);
+  const wanted = curTpl ? (curTpl.company||'Sin empresa') : (companies[0]||'');
+  sel.innerHTML=companies.map(c=>`<option value="${c}">${c}</option>`).join('');
+  sel.value=wanted;
+}
+function renderAgentTemplatePicker(){
+  const sel=document.getElementById('ag_template'); if(!sel) return;
+  const company=document.getElementById('ag_company').value;
+  const inCompany=state.templates.filter(t=>(t.company||'Sin empresa')===company);
+  sel.innerHTML=inCompany.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  const A=state.agent;
+  if(inCompany.some(t=>t.id===A.tplId)) sel.value=A.tplId;
+  else if(inCompany.length) sel.value=inCompany[0].id;
+}
+function openAgentModal(){
+  renderAgentCompanyPicker();
+  renderAgentTemplatePicker();
+  const A=state.agent;
+  document.getElementById('ag_from').value = A.dateFrom ? A.dateFrom.toISOString().slice(0,10) : '';
+  document.getElementById('ag_to').value = A.dateTo ? A.dateTo.toISOString().slice(0,10) : '';
+  document.getElementById('ag_starttime').value = A.startTimeOfDay ? String(A.startTimeOfDay.h).padStart(2,'0')+':'+String(A.startTimeOfDay.m).padStart(2,'0') : '';
+  document.getElementById('ag_endtime').value = A.endTimeOfDay ? String(A.endTimeOfDay.h).padStart(2,'0')+':'+String(A.endTimeOfDay.m).padStart(2,'0') : '';
+  document.getElementById('ag_challengetarget').value=A.challengeTarget;
+  document.getElementById('ag_maxfunded').value=A.maxFundedActive;
+  document.getElementById('ag_maxwaiting').value=A.maxWaiting;
+  document.getElementById('ag_profit_challenge').value=A.profitPauseChallenge;
+  document.getElementById('ag_profit_fday1').value=A.profitPauseFundedDay1;
+  document.getElementById('ag_profit_frest').value=A.profitPauseFundedRest;
+  document.getElementById('ag_waitmin').value=A.waitMinMin;
+  document.getElementById('ag_waitmax').value=A.waitMaxMin;
+  document.getElementById('ag_qty').value=A.qty||2;
+  document.getElementById('agentModalOverlay').style.display='flex';
+}
+document.getElementById('ag_company').onchange=renderAgentTemplatePicker;
+function closeAgentModal(){ document.getElementById('agentModalOverlay').style.display='none'; }
+document.getElementById('agentToggle').onchange=(e)=>{
+  if(e.target.checked){ e.target.checked=false; openAgentModal(); } // hay que configurar/aplicar antes de activar
+  else { state.agent.active=false; updateAgentStatus(); updateAgentResetButton(); }
+};
+document.getElementById('btnAgentConfig').onclick=openAgentModal;
+document.getElementById('btnAgentReset').onclick=resetAgentRun;
+document.getElementById('agentModalClose').onclick=closeAgentModal;
+document.getElementById('agentModalCancel').onclick=closeAgentModal;
+document.getElementById('agentModalApply').onclick=()=>{
+  const A=state.agent;
+  const chosenTplId=document.getElementById('ag_template').value;
+  if(!chosenTplId){ alert('Elegí qué challenge va a comprar el agente en esta corrida.'); return; }
+  A.tplId=chosenTplId;
+  const fromV=document.getElementById('ag_from').value, toV=document.getElementById('ag_to').value;
+  A.dateFrom = fromV ? new Date(fromV+'T00:00:00') : null;
+  A.dateTo = toV ? new Date(toV+'T23:59:59') : null;
+  const stV=document.getElementById('ag_starttime').value;
+  A.startTimeOfDay = stV ? {h:+stV.split(':')[0], m:+stV.split(':')[1]} : null;
+  const etV=document.getElementById('ag_endtime').value;
+  A.endTimeOfDay = etV ? {h:+etV.split(':')[0], m:+etV.split(':')[1]} : null;
+  if(A.startTimeOfDay && A.endTimeOfDay && (A.endTimeOfDay.h*60+A.endTimeOfDay.m) <= (A.startTimeOfDay.h*60+A.startTimeOfDay.m)){
+    alert('La hora de cierre tiene que ser posterior a la de inicio.'); return;
+  }
+  A.challengeTarget=Math.max(0, parseInt(document.getElementById('ag_challengetarget').value)||0);
+  A.maxFundedActive=Math.max(0, parseInt(document.getElementById('ag_maxfunded').value)||0);
+  A.maxWaiting=Math.max(0, parseInt(document.getElementById('ag_maxwaiting').value)||0);
+  A.profitPauseChallenge=parseFloat(document.getElementById('ag_profit_challenge').value)||0;
+  A.profitPauseFundedDay1=parseFloat(document.getElementById('ag_profit_fday1').value)||0;
+  A.profitPauseFundedRest=parseFloat(document.getElementById('ag_profit_frest').value)||0;
+  A.waitMinMin=Math.max(0, parseFloat(document.getElementById('ag_waitmin').value)||0);
+  A.waitMaxMin=Math.max(A.waitMinMin, parseFloat(document.getElementById('ag_waitmax').value)||A.waitMinMin);
+  A.qty=Math.max(1, parseInt(document.getElementById('ag_qty').value)||1);
+  A.lastDay=null; A.queue=[]; A.queueIdx=0; A.nextTradeAt=null; A.finishedToday=new Set(); A.fundedDayCounts={}; A.fundedGoalReached={};
+  const hadPriorRun=!!state.agentSnapshot; // ¿ya había una corrida anterior con foto tomada?
+  try{
+    // la foto se toma UNA sola vez: la primera aplicación tras cargar datos o tras el último Reset.
+    // Si ya existe una (porque se está reaplicando sin haber reseteado antes), se deja intacta — así
+    // Reset siempre vuelve al punto REAL de partida, no solo deshace la aplicación más reciente (que
+    // muchas veces no cambió nada, dejando la sensación de que el botón "no hace nada").
+    if(!hadPriorRun) takeAgentSnapshot();
+    A.active=true;
+    closeAgentModal();
+    document.getElementById('agentToggle').checked=true;
+    let warnedAboutRewind=false;
+    if(A.dateFrom && state.bars.length){
+      const curT = curBar() ? curBar().t.getTime() : -Infinity;
+      if(A.dateFrom.getTime()>curT){
+        gotoDateTime(A.dateFrom);
+      } else if(hadPriorRun){
+        // "Desde" ya quedó atrás del punto actual del replay — el salto es SIEMPRE hacia adelante,
+        // nunca puede rebobinar. Sin este aviso, el agente seguía en silencio desde donde ya estaba
+        // (normalmente el final de una corrida anterior), sin hacer nada nuevo — y entonces Reset
+        // "parecía" no hacer nada, porque no había ningún cambio real que deshacer.
+        showAlert('El "Desde" configurado ya quedó atrás en el replay — el agente va a seguir desde donde está parado ahora, no puede rebobinar. Si querés repetir ese período completo, primero apretá "Reset" y volvé a aplicar.', '');
+        warnedAboutRewind=true;
+      }
+    }
+    // caso más común que el de arriba: SIN "desde" configurado, si ya se corrió antes y el replay quedó
+    // exactamente en la última barra, esta corrida nueva no tiene ni una barra por delante para operar —
+    // avisa en vez de dejar que el usuario piense que el agente (o el botón de Reset) está roto.
+    if(!warnedAboutRewind && hadPriorRun && state.bars.length && state.idx>=state.bars.length-1){
+      showAlert('El replay ya está en el final de los datos cargados — esta corrida no va a tener ninguna barra nueva para operar. Si querés repetir el período, primero apretá "Reset" (o cargá más datos).', '');
+    }
+  } finally {
+    // pase lo que pase arriba (una excepción inesperada, un historial gigante, etc.), el botón de
+    // Reset y el estado del agente SIEMPRE quedan reflejando la realidad — nunca trabados.
+    updateAgentStatus();
+    updateAgentResetButton();
+  }
+};
+
+// ---------- wiring: indicadores ----------
+function openIndModal(){
+  const ind=state.indicators;
+  $('ind_sma_on').checked=ind.sma.on; $('ind_sma_period').value=ind.sma.period;
+  $('ind_boll_on').checked=ind.boll.on; $('ind_boll_period').value=ind.boll.period; $('ind_boll_mult').value=ind.boll.mult;
+  $('ind_rsi_on').checked=ind.rsi.on; $('ind_rsi_period').value=ind.rsi.period;
+  $('indModalOverlay').style.display='flex';
+}
+function closeIndModal(){ $('indModalOverlay').style.display='none'; }
+$('btnIndicators').onclick=openIndModal;
+$('indModalClose').onclick=closeIndModal;
+$('indModalApply').onclick=()=>{
+  const ind=state.indicators;
+  ind.sma.on=$('ind_sma_on').checked; ind.sma.period=Math.max(2, parseInt($('ind_sma_period').value)||20);
+  ind.boll.on=$('ind_boll_on').checked; ind.boll.period=Math.max(2, parseInt($('ind_boll_period').value)||20);
+  ind.boll.mult=parseFloat($('ind_boll_mult').value)||2;
+  ind.rsi.on=$('ind_rsi_on').checked; ind.rsi.period=Math.max(2, parseInt($('ind_rsi_period').value)||14);
+  closeIndModal();
+  drawChart(); drawRSIChart();
+};
+
+// ---------- wiring: pestaña Tracker ----------
+document.getElementById('tabTradingBtn').onclick=()=>{
+  state.activeTab='trading';
+  document.getElementById('viewTrading').style.display='flex';
+  document.getElementById('viewTracker').style.display='none';
+  document.getElementById('tabTradingBtn').classList.add('on');
+  document.getElementById('tabTrackerBtn').classList.remove('on');
+};
+document.getElementById('tabTrackerBtn').onclick=()=>{
+  state.activeTab='tracker';
+  document.getElementById('viewTracker').style.display='flex';
+  document.getElementById('viewTrading').style.display='none';
+  document.getElementById('tabTrackerBtn').classList.add('on');
+  document.getElementById('tabTradingBtn').classList.remove('on');
+  renderTrackerView();
+};
+document.querySelectorAll('.trackertab').forEach(b=>{
+  b.onclick=()=>{
+    state.trackerSubTab=b.dataset.sub;
+    document.querySelectorAll('.trackertab').forEach(x=>x.classList.toggle('on', x===b));
+    document.getElementById('trackerPaneLog').style.display = b.dataset.sub==='log' ? 'block':'none';
+    document.getElementById('trackerPaneEquity').style.display = b.dataset.sub==='equity' ? 'block':'none';
+    renderTrackerView();
+  };
+});
+(function(){
+  const cv=document.getElementById('trackerEquityCanvas');
+  const tip=document.getElementById('trackerEquityTooltip');
+  cv.addEventListener('mousemove', e=>{
+    const proj=state.trackerEquityProj; if(!proj){ tip.style.display='none'; return; }
+    const r=cv.getBoundingClientRect();
+    const mx=e.clientX-r.left, my=e.clientY-r.top;
+    const i=Math.round((mx-proj.padL)/proj.plotW*(proj.pts.length-1));
+    if(i<1 || i>=proj.pts.length || mx<proj.padL){ tip.style.display='none'; return; }
+    const entry=state.ledger[i-1];
+    tip.innerHTML=`
+      <div class="row"><span class="k">Cuenta</span><span>${entry.acc||'—'}</span></div>
+      <div class="row"><span class="k">Tipo</span><span>${entry.type}</span></div>
+      <div class="row"><span class="k">Monto</span><span>${(entry.amount>=0?'+':'')+money(entry.amount)}</span></div>
+      <div class="row"><span class="k">Acumulado</span><span>${money(proj.pts[i])}</span></div>`;
+    let left=mx+14, top=my+14;
+    if(left+160>proj.w) left=mx-170;
+    tip.style.left=left+'px'; tip.style.top=top+'px'; tip.style.display='block';
+  });
+  cv.addEventListener('mouseleave', ()=>{ tip.style.display='none'; });
+})();
+
+// ---------- wiring: tema claro/oscuro ----------
+function setTheme(light){
+  document.body.classList.toggle('light', !!light);
+  $('btnTheme').textContent = light ? '☀️ Claro' : '🌙 Oscuro';
+  drawChart(); drawBusinessEquity(); drawRSIChart();
+  if(state.activeTab==='tracker') renderTrackerView();
+}
+$('btnTheme').onclick=()=>setTheme(!document.body.classList.contains('light'));
+
+window.addEventListener('resize', ()=>{ drawChart(); drawBusinessEquity(); drawRSIChart(); if(state.activeTab==='tracker') renderTrackerView(); });
+
+/* loop de render suave para P&L abierto mientras corre el replay */
+function tick(){ const acc=activeAcct(); if(acc && acc.position){ renderPosition(); } requestAnimationFrame(tick); }
+
+// ---------- resize: alto del panel RSI, ancho de la columna del chart ----------
+(function(){
+  const handle=document.getElementById('rsiResizeHandle');
+  const rsi=document.getElementById('rsiChart');
+  let dragging=false, startY=0, startH=0;
+  handle.addEventListener('mousedown', e=>{
+    dragging=true; startY=e.clientY; startH=rsi.getBoundingClientRect().height;
+    document.body.style.userSelect='none'; e.preventDefault();
+  });
+  window.addEventListener('mousemove', e=>{
+    if(!dragging) return;
+    const newH=Math.max(50, Math.min(400, startH + (e.clientY-startY)));
+    rsi.style.height=newH+'px';
+    drawRSIChart();
+  });
+  window.addEventListener('mouseup', ()=>{ if(dragging){ dragging=false; document.body.style.userSelect=''; } });
+})();
+(function(){
+  const handle=document.getElementById('colResizeHandle');
+  const leftCol=document.getElementById('leftCol');
+  let dragging=false, startX=0, startW=0;
+  handle.addEventListener('mousedown', e=>{
+    dragging=true; startX=e.clientX; startW=leftCol.getBoundingClientRect().width;
+    document.body.style.userSelect='none'; e.preventDefault();
+  });
+  window.addEventListener('mousemove', e=>{
+    if(!dragging) return;
+    const newW=Math.max(420, startW + (e.clientX-startX));
+    leftCol.style.flex='none';
+    leftCol.style.width=newW+'px';
+    drawChart(); drawRSIChart();
+  });
+  window.addEventListener('mouseup', ()=>{ if(dragging){ dragging=false; document.body.style.userSelect=''; } });
+})();
+
+/* ============================================================
+   INIT
+   ============================================================ */
+state.templates=defaultTemplates(); state.selTpl='t1';
+state.atmPresetsByTpl=defaultAtmPresets(); state.atmIdCounter=7;
+renderAtmChips();
+loadBars(genSample());
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
