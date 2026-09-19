@@ -209,13 +209,13 @@ registerSidePanel({
     title: 'Trading Panel',
     icon: 'propfirm.backtest',
     order: 30,
-    // Ancho/overlay alineados con Centro de control (panel-tracker.ts) — antes quedaba angosto y
-    // acoplado (320-480px), lo que lo hacía ver chico/apretado contra el otro panel y contra el
-    // chart; flotante como Tracker no le come ancho al chart al agrandarlo.
-    width: 440,
+    // Mismo ancho/overlay que Centro de control (panel-tracker.ts), sin término medio — pedido
+    // explícito del usuario tras varias rondas donde un ancho intermedio (320-480, después 440-720)
+    // seguía viéndose chico/distinto al lado de Tracker.
+    width: 960,
     resizable: true,
-    minWidth: 360,
-    maxWidth: 720,
+    minWidth: 640,
+    maxWidth: 1400,
     overlay: true,
     mount: (ctx, body) => {
         const sim = getSimulator();
