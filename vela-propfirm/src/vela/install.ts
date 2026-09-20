@@ -13,6 +13,7 @@ import './order-ticket';
 import './position-adjust';
 import './panel-backtest';
 import './panel-tracker';
+import './pine-code';
 import './persistence';
 
 export interface PropFirmInstall {
